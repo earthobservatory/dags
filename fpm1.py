@@ -82,8 +82,8 @@ with DAG(
     send_slack = SlackWebhookOperator(
     task_id='send_slack_notifications',
     slack_webhook_conn_id = 'slack_webhook_fpm1',
-    message='On your MacBook, run the following scripts :  \n \n \n To download FPM1 products : \n scp -r aws-hpc:/home/centos/urgent_response/{{var.json.DPM1_variables.dir_name}}/fpm1/\* . ',
-    channel='#dpm1-sarfinder-aws-hpc',
+    message='On your MacBook, run the following scripts :  \n \n \n To download FPM1 products : \n scp -r aws-hpc:/home/centos/urgent_response/{{var.json.FPM1_variables.dir_name}}/fpm1/\* . ',
+    channel='#fpm1-sarfinder-aws-hpc',
     username='airflow'
     )
 

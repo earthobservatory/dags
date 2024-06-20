@@ -147,7 +147,7 @@ with DAG(
         task_id='send_slack_notifications',
         slack_webhook_conn_id = 'slack_webhook_fpm2',
         message='On your MacBook, run the following scripts : \n \n \n To download FPM2 products : \n scp -r aws-hpc:/home/centos/urgent_response/{{var.json.FPM2_variables.dir_name}}/stack.tar . ',
-        channel='#dpm2-sarfinder-aws-hpc',
+        channel='#fpm2-sarfinder-aws-hpc',
         username='airflow'
     )
 
