@@ -41,7 +41,7 @@ with DAG(
     download= SSHOperator(
         task_id="01b_download.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 01b_download_airflow.sh ""',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 01b_download.sh ""',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -65,7 +65,7 @@ with DAG(
     auto_control_run1= SSHOperator(
         task_id="04_auto_control.sh_start_run1.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run1" "run1"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run1" "run1"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -73,7 +73,7 @@ with DAG(
     auto_control_run2= SSHOperator(
         task_id="04_auto_control.sh_start_run2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run2" "run2"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run2" "run2"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -81,7 +81,7 @@ with DAG(
     auto_control_run2x5= SSHOperator(
         task_id="04_auto_control.sh_start_run2x5.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run2x5" "run2x5"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run2x5" "run2x5"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -89,7 +89,7 @@ with DAG(
     auto_control_run3= SSHOperator(
         task_id="04_auto_control.sh_start_run3.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run3" "run3"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run3" "run3"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -97,7 +97,7 @@ with DAG(
     auto_control_run4= SSHOperator(
         task_id="04_auto_control.sh_start_run4.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run4" "run4"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run4" "run4"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -105,7 +105,7 @@ with DAG(
     auto_control_run5= SSHOperator(
         task_id="04_auto_control.sh_start_run5.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run5" "run5"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run5" "run5"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -113,7 +113,7 @@ with DAG(
     auto_control_run6= SSHOperator(
         task_id="04_auto_control.sh_start_run6.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run6" "run6"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run6" "run6"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -121,7 +121,7 @@ with DAG(
     auto_control_run7= SSHOperator(
         task_id="04_auto_control.sh_start_run7.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control_airflow.sh "test" "start" "run7" "run7"',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json.FPM2_variables.dir_name}}; 04_auto_control.sh "test" "start" "run7" "run7"',
         cmd_timeout=None,
         conn_timeout=None
     )
