@@ -232,9 +232,17 @@ with DAG(
     )
 
     generate_slcstk2cor= SSHOperator(
-        task_id="05_generate_slcstk2cor.sh",
+        task_id="05a_generate_slcstk2cor.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05_generate_slcstk2cor.sh ""',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05a_generate_slcstk2cor.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    generate_cor2dpm2= SSHOperator(
+        task_id="05b_generate_cor2dpm2.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05b_generate_cor2dpm2.sh ""',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -280,6 +288,6 @@ with DAG(
     )
  
 
-    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> upload_greyscale >> send_slack >> update_job_status >> cleanup_task
+    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> generate_cor2dpm2 >> upload_greyscale >> send_slack >> update_job_status >> cleanup_task
 
     #prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> generate_slcstk2cor >> send_slack
