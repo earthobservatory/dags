@@ -93,7 +93,7 @@ with DAG(
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_fpm2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; 00a_prepare_directory_fpm2.sh "{{var.json[run_id]}}"',
+        command='source ~/.bash_profile; echo VARIABLES: "{{ var.json[run_id] }}"; 00a_prepare_directory_fpm2.sh "{{var.json[run_id]}}"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -131,9 +131,9 @@ with DAG(
     )
 
     dpm2_response_setup= SSHOperator(
-        task_id="03_create_run_script.sh",
+        task_id="03_create_run_script_xpm2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 03_create_run_script.sh ""',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 03_create_run_script_xpm2.sh ""',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -222,7 +222,7 @@ with DAG(
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id = 'slack_webhook_fpm2',
-        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc:/home/centos/urgent_response/{{var.json[run_id].dir_name}}/stack.tar .\n```\n \n',
+        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc:/home/centos/urgent_response/{{var.json[run_id].dir_name}}/fpm2/fpm2.tar .\n```\n \n',
         channel='#fpm2-sarfinder-aws-hpc',
         username='airflow'
     )
@@ -238,7 +238,9 @@ with DAG(
             # "request_id": "{{ var.json[run_id].request_id }}",  # Access run_id from XCom
             "status": "success",
             "dag_run_id": "{{ run_id }}"
-        })
+        }),
+        extra_options={"check_response": False}  # Ignores HTTP errors
+
     )
 
 

@@ -13,7 +13,7 @@ from airflow.utils.trigger_rule import TriggerRule
 
 import requests
 
-name="DPM2"
+name="DPM2_BD"
 
 
 def failure_callback(context):
@@ -114,7 +114,7 @@ with DAG(
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_dpm2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; echo VARIABLES: "{{ var.json[run_id] }}"; 00a_prepare_directory_dpm2.sh "{{ var.json[run_id] }}"',
+        command='source ~/.bash_profile; echo VARIABLES: "{{ var.json[run_id] }}"; 00a_prepare_directory_dpm2.sh "{{ var.json[run_id] }}"',    
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -239,10 +239,72 @@ with DAG(
         conn_timeout=None
     )
 
-    generate_cor2dpm2= SSHOperator(
-        task_id="05b_generate_cor2dpm2.sh",
+    create_dpm2_runfiles= SSHOperator(
+        task_id="05b_create_dpm2_runfiles",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05b_generate_cor2dpm2.sh ""',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05b_create_dpm2_runfiles.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_1= SSHOperator(
+        task_id="06_run_dpm2_1",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_1" "start" "run_dpm2_1" "run_dpm2_1"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_2= SSHOperator(
+        task_id="06_run_dpm2_2",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_2" "start" "run_dpm2_2" "run_dpm2_2"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_3= SSHOperator(
+        task_id="06_run_dpm2_3",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_3" "start" "run_dpm2_2" "run_dpm2_3"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+    auto_control_run_dpm2_4= SSHOperator(
+        task_id="06_run_dpm2_4",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_4" "start" "run_dpm2_4" "run_dpm2_4"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+    auto_control_run_dpm2_5= SSHOperator(
+        task_id="06_run_dpm2_5",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; rm -rf dpm2/probGV; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_5" "start" "run_dpm2_5" "run_dpm2_5"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_6= SSHOperator(
+        task_id="06_run_dpm2_6",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_6" "start" "run_dpm2_6" "run_dpm2_6"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_7= SSHOperator(
+        task_id="06_run_dpm2_7",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_7" "start" "run_dpm2_7" "run_dpm2_7"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run_dpm2_8= SSHOperator(
+        task_id="06_run_dpm2_8",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_8" "start" "run_dpm2_8" "run_dpm2_8"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -274,8 +336,7 @@ with DAG(
             # "request_id": "{{ var.json[run_id].request_id }}",  # Access run_id from XCom
             "status": "success",
             "dag_run_id": "{{ run_id }}"
-        }),
-        extra_options={"check_response": False}  # Ignores HTTP errors
+        })
     )
 
 
@@ -287,8 +348,13 @@ with DAG(
         trigger_rule=TriggerRule.ALL_SUCCESS  # Ensures task runs only if all upstream tasks succeed
 
     )
- 
 
-    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> generate_cor2dpm2 >> upload_greyscale >> send_slack >> update_job_status >> cleanup_task
+
+    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> \
+    auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> \
+    auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> \
+    create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> auto_control_run_dpm2_4 >> \
+    auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
+    upload_greyscale >> send_slack >> update_job_status >> cleanup_task
 
     #prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> generate_slcstk2cor >> send_slack

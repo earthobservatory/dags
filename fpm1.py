@@ -93,7 +93,7 @@ with DAG(
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_dpm1.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; 00a_prepare_directory_fpm1.sh "{{var.json[run_id]}}"',
+        command='source ~/.bash_profile; echo VARIABLES: "{{ var.json[run_id] }}"; 00a_prepare_directory_fpm1.sh "{{var.json[run_id]}}"',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -131,9 +131,9 @@ with DAG(
     )
 
     fpm1_response_setup= SSHOperator(
-        task_id="03a_fpm1_response_setup.sh",
+        task_id="03_create_run_script_xpm1.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 03a_fpm1_response_setup.sh ""',
+        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 03_create_run_script_xpm1.sh ""',
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -173,7 +173,8 @@ with DAG(
             # "request_id": "{{ var.json[run_id].request_id }}",  # Access run_id from XCom
             "status": "success",
             "dag_run_id": "{{ run_id }}"
-        })
+        }),
+        extra_options={"check_response": False}  # Ignores HTTP errors
     )
 
 
