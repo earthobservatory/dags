@@ -1,19 +1,22 @@
 from airflow.decorators import dag
 from datetime import datetime
 from airflow.providers.ssh.operators.ssh import SSHOperator
+from airflow.operators.python import BranchPythonOperator
 from airflow import DAG
 from airflow.models import Variable
 import json
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from airflow.hooks.base_hook import BaseHook
 from airflow.operators.python import PythonOperator
+from airflow.contrib.sensors.python_sensor import PythonSensor
 from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.models import DagRun
 from airflow.utils.trigger_rule import TriggerRule
+from copy import deepcopy
+
 
 import requests
-
-name = "DPM2_BD"
+name = "DPM2_BDPP"
 
 
 def failure_callback(context):
@@ -92,22 +95,37 @@ def cleanup_variables(**kwargs):
     Variable.delete(run_id)
 
 
-def set_variables(**kwargs):
+def set_and_store_variables(**kwargs):
     run_id = kwargs['run_id']
     variables = Variable.get(f"{name}_variables")
     Variable.set(run_id, variables)
+    prevent_selection_files = Variable.get("selection_download", deserialize_json=True)
+    return prevent_selection_files
 
+def check_postevent_ready(**kwargs):
+    ti = kwargs['ti']
+    prevent_selection_files = ti.xcom_pull(task_ids='set_and_store_variables').get()
+    current_selection_files = Variable.get("selection_download", deserialize_json=True)
+    post_event_scenes = list(set(current_selection_files) - set(prevent_selection_files))
+    return post_event_scenes
 
-with DAG(
+def choose_postevent_branch(**kwargs):
+    postevent_exists = Variable.get("postevent_exists",default_var=True,deserialize_json=True)
+    if postevent_exists:
+        return 'auto_control_run_dpm2_4'
+    else:
+        return 'wait_for_postevent'
+
+with (DAG(
         dag_id=name,
         schedule_interval=None,
         start_date=datetime(2022, 1, 1),
         catchup=False,
         on_failure_callback=failure_callback
-) as dag:
+) as dag):
     set_variable_task = PythonOperator(
-        task_id='set_variables',
-        python_callable=set_variables,
+        task_id='set_and_store_variables',
+        python_callable=set_and_store_variables,
         provide_context=True
     )
 
@@ -151,7 +169,7 @@ with DAG(
         conn_timeout=None
     )
 
-    dpm2_response_setup = SSHOperator(
+    stackproc_runfile_setup = SSHOperator(
         task_id="03_create_run_script_xpm2.sh",
         ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03_create_run_script_xpm2.sh ""',
@@ -275,7 +293,9 @@ with DAG(
         ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_4" "start" "run_dpm2_4" "run_dpm2_4"',
         cmd_timeout=None,
-        conn_timeout=None
+        conn_timeout=None,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
+
     )
     auto_control_run_dpm2_5 = SSHOperator(
         task_id="06_run_dpm2_5",
@@ -317,6 +337,117 @@ with DAG(
         conn_timeout=None
     )
 
+    ### UPDATE METHODS ###
+    choose_branch = BranchPythonOperator(
+        task_id='check_postevent_branch',
+        python_callable=choose_postevent_branch
+    )
+
+
+    wait_for_postevent = PythonSensor(
+        task_id='wait_for_postevent',
+        python_callable=check_postevent_ready,
+        mode='reschedule',
+        poke_interval=30
+    )
+
+    update_selection_file = SSHOperator(
+        task_id="update_selection_file",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; echo "{{ ti.xcom_pull(key=\"wait_for_postevent\")}}" > selection_download.txt',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    download_update = SSHOperator(
+        task_id="01b_download_update.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01b_download.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    symlink_update = SSHOperator(
+        task_id="02a_symlink_data_update.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 02a_symlink_data.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    stackproc_runfile_setup_update = SSHOperator(
+        task_id="03_create_run_script_xpm2_update.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03_create_run_script_xpm2.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu1 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu1.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu1" "runu1"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu1x5 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu1x5.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu1x5" "runu1x5"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu2 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu2.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu2" "runu2"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu3 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu3.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu3" "runu3"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu4 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu4.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu4" "runu4"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu5 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu5.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu5" "runu5"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_runu6 = SSHOperator(
+        task_id="04_auto_control.sh_start_runu6.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu6" "runu6"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    generate_slcstk2cor_update = SSHOperator(
+        task_id="05a_generate_slcstk2cor_update.sh",
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05a_generate_slcstk2cor.sh ""',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id='slack_webhook_dpm2',
@@ -346,11 +477,26 @@ with DAG(
 
     )
 
-    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> \
+    set_variable_task >> prepare_directory >> [get_dem, update_download_config]
+    update_download_config >> download >> symlink
+    [get_dem, symlink]>> stackproc_runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> \
     auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> \
-    create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> auto_control_run_dpm2_4 >> \
-    auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
+    create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
+    choose_branch >> [auto_control_run_dpm2_4, wait_for_postevent]
+    wait_for_postevent >> update_selection_file >> download_update >> symlink_update >> stackproc_runfile_setup_update >> \
+    auto_control_runu1 >> auto_control_runu1x5 >> auto_control_runu2 >> auto_control_runu3 >> auto_control_runu4 >> auto_control_runu5 >> auto_control_runu6 >> \
+    generate_slcstk2cor_update >> auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
     send_slack >> upload_greyscale >> update_job_status >> cleanup_task
 
-    # prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> generate_slcstk2cor >> send_slack
+
+    # Break here to wait, use a Deferring Task (Sensor etc) to check for variable change
+    # Do:
+    # update_selection_file
+    # download
+    # symlink
+    # stackproc_runfile_setup_update
+    # auto_control_runu1 to auto_control_runu6
+    # generate_slcstk2cor (no need update)
+    # auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
+    # send_slack >> upload_greyscale >> update_job_status >> cleanup_task
