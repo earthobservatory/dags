@@ -289,6 +289,6 @@ with DAG(
     )
  
 
-    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> generate_cor2dpm2 >> upload_greyscale >> send_slack >> update_job_status >> cleanup_task
+    set_variable_task >> prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> generate_cor2dpm2 >> send_slack >> upload_greyscale >> update_job_status >> cleanup_task
 
     #prepare_directory >> get_dem >> update_download_config >> download >> symlink >> dpm2_response_setup >> auto_control_run1 >> generate_slcstk2cor >> send_slack
