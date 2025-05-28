@@ -222,7 +222,7 @@ with DAG(
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id = 'slack_webhook_fpm2',
-        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc:/home/centos/urgent_response/{{var.json[run_id].dir_name}}/fpm2/fpm2.tar .\n```\n \n',
+        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{var.json[run_id].dir_name}}/fpm2/fpm2.tar .\n```\n \n',
         channel='#fpm2-sarfinder-aws-hpc',
         username='airflow'
     )

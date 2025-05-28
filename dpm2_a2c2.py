@@ -330,7 +330,7 @@ with (DAG(
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id='slack_webhook_dpm2',
-        message=':blob_excited:On your MacBook, run the following scripts to download DPM2 products:blob_excited:\n```\nscp -r aws-hpc:/home/ubuntu/urgent_response/{{ var.json[run_id].dir_name }}/dpm2/probGV/\*tif .\n```\n \n',
+        message=':blob_excited:On your MacBook, run the following scripts to download DPM2 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{ var.json[run_id].dir_name }}/dpm2/probGV/\*tif .\n```\n \n',
         channel='#dpm2-sarfinder-aws-hpc',
         username='airflow'
     )
