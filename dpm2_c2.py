@@ -13,6 +13,7 @@ from airflow.providers.http.operators.http import SimpleHttpOperator
 from airflow.models import DagRun
 from airflow.utils.trigger_rule import TriggerRule
 from copy import deepcopy
+from airflow.operators.dummy import DummyOperator
 
 
 import requests
@@ -144,6 +145,15 @@ def run_if_one_success(**context):
         print("Post-event upate mode activated and all update mode succeeded continuing dpm2_processing.")
     else:
         raise Exception("No upstream task succeeded. Failing this task.")
+
+def should_generate_ifg_branch(**kwargs):
+    run_id = kwargs['run_id']
+    variables = Variable.get(run_id, deserialize_json=True)
+    if variables.get('generate_ifg', False):
+        return '05i_generate_ifg'
+    else:
+        return None  # This will be a dummy branch for skipping
+    
 
 with (DAG(
         dag_id=name,
@@ -279,6 +289,25 @@ with (DAG(
         cmd_timeout=None,
         conn_timeout=None
     )
+
+    # # Branch to decide whether to create interferograms
+    branch_generate_ifg = BranchPythonOperator(
+        task_id='branch_generate_ifg',
+        python_callable=should_generate_ifg_branch,
+        provide_context=True
+    )
+
+    generate_ifg = SSHOperator(
+        task_id="05i_generate_ifg",
+        ssh_conn_id='ssh_eosaws2',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runifg" "start" "run_ifg" "run_ifg"',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    # Dummy task used when IFG generation is skipped
+    # skip_ifg = DummyOperator(task_id='skip_ifg')
+
 
     generate_slcstk2cor = SSHOperator(
         task_id="05a_generate_slcstk2cor.sh",
@@ -486,7 +515,6 @@ with (DAG(
         conn_timeout=None
     )
 
-
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id='slack_webhook_dpm2',
@@ -518,10 +546,11 @@ with (DAG(
 
     set_variable_task >> prepare_directory >> [get_dem, update_download_config]
     update_download_config >> download >> symlink
-    [get_dem, symlink]>> stackproc_runfile_setup >> \
+    [get_dem, symlink] >> stackproc_runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> \
-    auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> \
-    create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
+    auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> [branch_generate_ifg, generate_slcstk2cor]
+    branch_generate_ifg >> generate_ifg
+    generate_slcstk2cor >> create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
     choose_branch >> [conditional_continuation, wait_for_postevent]
     wait_for_postevent >> update_selection_file >> download_update >> symlink_update >> stackproc_runfile_setup_update >> \
     auto_control_runu1 >> auto_control_runu1x5 >> auto_control_runu2 >> auto_control_runu3 >> auto_control_runu4 >> auto_control_runu5 >> auto_control_runu6 >> \
