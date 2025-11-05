@@ -17,7 +17,7 @@ from airflow.operators.dummy import DummyOperator
 
 
 import requests
-name = "DPM2NI_GSLC"
+name = "NI_GSLC_DPM2"
 
 
 def failure_callback(context):
@@ -171,7 +171,7 @@ with (DAG(
 
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_dpm2.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
 #        command=f'source ~/.bash_profile; echo VARIABLES: {json.dumps({{ var.value[run_id] }})}; 00a_prepare_directory_dpm2.sh {json.dumps({{ var.value[run_id] }})}',
         command="source ~/.bash_profile; export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\n')  && 00a_prepare_directory_dpm2.sh \"$VARIABLE\"",
         cmd_timeout=None,
@@ -180,7 +180,7 @@ with (DAG(
 
 #    get_dem = SSHOperator(
 #        task_id="00_get_dem_adv.sh",
-#        ssh_conn_id='ssh_eosaws2',
+#        ssh_conn_id='ssh',
 #        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 00_get_dem_adv.sh ""',
 #        cmd_timeout=None,
 #        conn_timeout=None
@@ -188,7 +188,7 @@ with (DAG(
 
     update_download_config = SSHOperator(
         task_id="01a_update_download_config.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01a_update_download_config.sh ""',
         cmd_timeout=None,
         conn_timeout=None
@@ -196,7 +196,7 @@ with (DAG(
 
     download = SSHOperator(
         task_id="01b_download.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01b_download.sh ""',
         cmd_timeout=None,
         conn_timeout=None
@@ -204,7 +204,7 @@ with (DAG(
 
     symlink = SSHOperator(
         task_id="02a_symlink_data.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 02a_symlink_data.sh ""',
         cmd_timeout=None,
         conn_timeout=None
@@ -212,7 +212,7 @@ with (DAG(
 
     stackproc_runfile_setup = SSHOperator(
         task_id="03_create_run_script_nisar.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03_create_run_script_nisar.sh ""',
         cmd_timeout=None,
         conn_timeout=None
@@ -220,7 +220,7 @@ with (DAG(
 
     # symlink_orbits= SSHOperator(
     #     task_id="03b_symlink_orbits.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03b_symlink_orbits.sh "{variables}"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -228,7 +228,7 @@ with (DAG(
 
     auto_control_run1 = SSHOperator(
         task_id="04_auto_control.sh_start_run1.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
 #        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; echo $PATH; which sbatch;',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run1" "start" "run1" "run1"',
         cmd_timeout=None,
@@ -237,7 +237,7 @@ with (DAG(
 
     auto_control_run2 = SSHOperator(
         task_id="04_auto_control.sh_start_run2.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2" "start" "run2" "run2"',
         cmd_timeout=None,
         conn_timeout=None
@@ -245,7 +245,7 @@ with (DAG(
 
     auto_control_run3 = SSHOperator(
         task_id="04_auto_control.sh_start_run3.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run3" "start" "run3" "run3"',
         cmd_timeout=None,
         conn_timeout=None
@@ -253,7 +253,7 @@ with (DAG(
 
     create_dpm2_runfiles = SSHOperator(
         task_id="05b_create_dpm2_runfiles",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05b_create_dpm2_runfiles.sh ""',
         cmd_timeout=None,
         conn_timeout=None
@@ -261,7 +261,7 @@ with (DAG(
 
     auto_control_run_dpm2_1 = SSHOperator(
         task_id="06_run_dpm2_1",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_1" "start" "run_dpm2_1" "run_dpm2_1"',
         cmd_timeout=None,
         conn_timeout=None
@@ -269,7 +269,7 @@ with (DAG(
 
     auto_control_run_dpm2_2 = SSHOperator(
         task_id="06_run_dpm2_2",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_2" "start" "run_dpm2_2" "run_dpm2_2"',
         cmd_timeout=None,
         conn_timeout=None
@@ -277,7 +277,7 @@ with (DAG(
 
     auto_control_run_dpm2_3 = SSHOperator(
         task_id="06_run_dpm2_3",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_3" "start" "run_dpm2_3" "run_dpm2_3"',
         cmd_timeout=None,
         conn_timeout=None
@@ -291,7 +291,7 @@ with (DAG(
 
     auto_control_run_dpm2_4 = SSHOperator(
         task_id="06_run_dpm2_4",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_4" "start" "run_dpm2_4" "run_dpm2_4"',
         cmd_timeout=None,
         conn_timeout=None,
@@ -300,7 +300,7 @@ with (DAG(
     )
     auto_control_run_dpm2_5 = SSHOperator(
         task_id="06_run_dpm2_5",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; rm -rf dpm2/probGV; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_5" "start" "run_dpm2_5" "run_dpm2_5"',
         cmd_timeout=None,
         conn_timeout=None
@@ -308,7 +308,7 @@ with (DAG(
 
     auto_control_run_dpm2_6 = SSHOperator(
         task_id="06_run_dpm2_6",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_6" "start" "run_dpm2_6" "run_dpm2_6"',
         cmd_timeout=None,
         conn_timeout=None
@@ -316,7 +316,7 @@ with (DAG(
 
     auto_control_run_dpm2_7 = SSHOperator(
         task_id="06_run_dpm2_7",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_7" "start" "run_dpm2_7" "run_dpm2_7"',
         cmd_timeout=None,
         conn_timeout=None
@@ -324,7 +324,7 @@ with (DAG(
 
     auto_control_run_dpm2_8 = SSHOperator(
         task_id="06_run_dpm2_8",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_8" "start" "run_dpm2_8" "run_dpm2_8"',
         cmd_timeout=None,
         conn_timeout=None
@@ -332,7 +332,7 @@ with (DAG(
 
     upload_greyscale = SSHOperator(
         task_id="08_upload_greyscale.sh",
-        ssh_conn_id='ssh_eosaws2',
+        ssh_conn_id='ssh',
         command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 08_upload_greyscale.sh "{{ var.json[run_id].dir_name }}" ',
         cmd_timeout=None,
         conn_timeout=None
@@ -354,7 +354,7 @@ with (DAG(
 
     # update_selection_file = SSHOperator(
     #     task_id="update_selection_file",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='''source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; echo '{{ ti.xcom_pull(key="post_event_selection_str") }}' >> selection_download.txt''',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -362,7 +362,7 @@ with (DAG(
 
     # download_update = SSHOperator(
     #     task_id="01b_download_update.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01b_download.sh ""',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -370,7 +370,7 @@ with (DAG(
 
     # symlink_update = SSHOperator(
     #     task_id="02a_symlink_data_update.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 02a_symlink_data.sh ""',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -378,7 +378,7 @@ with (DAG(
 
     # stackproc_runfile_setup_update = SSHOperator(
     #     task_id="03_create_run_script_xpm2_update.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03_create_run_script_xpm2.sh ""',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -386,7 +386,7 @@ with (DAG(
 
     # auto_control_runu1 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu1.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu1" "runu1"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -394,7 +394,7 @@ with (DAG(
 
     # auto_control_runu1x5 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu1x5.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu1x5" "runu1x5"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -402,7 +402,7 @@ with (DAG(
 
     # auto_control_runu2 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu2.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu2" "runu2"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -410,7 +410,7 @@ with (DAG(
 
     # auto_control_runu3 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu3.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu3" "runu3"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -418,7 +418,7 @@ with (DAG(
 
     # auto_control_runu4 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu4.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu4" "runu4"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -426,7 +426,7 @@ with (DAG(
 
     # auto_control_runu5 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu5.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu5" "runu5"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -434,7 +434,7 @@ with (DAG(
 
     # auto_control_runu6 = SSHOperator(
     #     task_id="04_auto_control.sh_start_runu6.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_runu1" "start" "runu6" "runu6"',
     #     cmd_timeout=None,
     #     conn_timeout=None
@@ -442,7 +442,7 @@ with (DAG(
 
     # generate_slcstk2cor_update = SSHOperator(
     #     task_id="05a_generate_slcstk2cor_update.sh",
-    #     ssh_conn_id='ssh_eosaws2',
+    #     ssh_conn_id='ssh',
     #     command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05a_generate_slcstk2cor.sh ""',
     #     cmd_timeout=None,
     #     conn_timeout=None
