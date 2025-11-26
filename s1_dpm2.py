@@ -116,8 +116,8 @@ def check_postevent_ready(**kwargs):
 
 def choose_postevent_branch(**kwargs):
     run_id = kwargs['run_id']
-    postevent_exists = Variable.get(run_id, deserialize_json=True)['postevent_exists']
-    if postevent_exists:
+    processing_mode_at_init = Variable.get(run_id, deserialize_json=True)['additional_data']['processing_mode']
+    if "immediate" in processing_mode_at_init.lower():
         return 'continue_run_if_one_success'
     else:
         return 'wait_for_postevent'
