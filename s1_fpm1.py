@@ -93,7 +93,7 @@ with DAG(
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_dpm1.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; echo VARIABLES: "{{ var.json[run_id] }}"; 00a_prepare_directory_fpm1.sh "{{var.json[run_id]}}"',
+        command="source ~/.bash_profile; export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\n')  && 00a_prepare_directory_fpm1.sh \"$VARIABLE\"",
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -178,6 +178,13 @@ with DAG(
     )
 
 
+    archive_task = SSHOperator(
+        task_id='response_archive',
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; archive_responses.sh -f {{ var.json[run_id].dir_name }}',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
     
     
     cleanup_task = PythonOperator(
@@ -190,4 +197,4 @@ with DAG(
     
     set_variable_task >> prepare_directory >> [get_dem, update_download_config]
     update_download_config >> download >> symlink
-    [get_dem, symlink] >> fpm1_response_setup >> auto_control_run1 >> auto_control_run3 >> send_slack >> update_job_status >> cleanup_task
+    [get_dem, symlink] >> fpm1_response_setup >> auto_control_run1 >> auto_control_run3 >> send_slack >> update_job_status >> archive_task >> cleanup_task

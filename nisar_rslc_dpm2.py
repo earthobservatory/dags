@@ -470,6 +470,15 @@ with (DAG(
         })
     )
 
+    archive_task = SSHOperator(
+        task_id='response_archive',
+        ssh_conn_id='ssh',
+        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; archive_responses.sh -f {{ var.json[run_id].dir_name }}',
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+
     cleanup_task = PythonOperator(
         task_id='cleanup_variables',
         python_callable=cleanup_variables,
@@ -483,7 +492,7 @@ with (DAG(
     [get_dem, symlink]>> stackproc_runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> auto_control_run3 >> create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
     auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
-    send_slack >> upload_greyscale >> update_job_status >> cleanup_task
+    send_slack >> upload_greyscale >> update_job_status >> archive_task >> cleanup_task
 
 
     # Break here to wait, use a Deferring Task (Sensor etc) to check for variable change
