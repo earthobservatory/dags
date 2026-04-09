@@ -557,13 +557,13 @@ with (DAG(
     update_download_config >> download >> symlink
     [get_dem, symlink] >> stackproc_runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> \
-    auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> [branch_generate_ifg, generate_slcstk2cor]
-    branch_generate_ifg >> generate_ifg
-    generate_slcstk2cor >> create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
+    auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> generate_slcstk2cor >> create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
     choose_branch >> [conditional_continuation, wait_for_postevent]
     wait_for_postevent >> update_selection_file >> download_update >> symlink_update >> stackproc_runfile_setup_update >> \
     auto_control_runu1 >> auto_control_runu1x5 >> auto_control_runu2 >> auto_control_runu3 >> auto_control_runu4 >> auto_control_runu5 >> auto_control_runu6 >> \
-    generate_slcstk2cor_update >> conditional_continuation >> auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
+    generate_slcstk2cor_update >> conditional_continuation >> [branch_generate_ifg, auto_control_run_dpm2_4]
+    branch_generate_ifg >> generate_ifg
+    auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
     send_slack >> upload_greyscale >> update_job_status >> archive_task >>  cleanup_task
 
 
