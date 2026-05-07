@@ -14,6 +14,14 @@ import requests
 
 name="S1_FPM2"
 
+SETUP_SCRIPT = "/home/ubuntu/insarscripts/stack_processor_aws/env_setup/setup_fpm_aws.sh"
+
+def ssh_cmd(script: str, use_dir: bool = True) -> str:
+    base = "source " + SETUP_SCRIPT
+    if use_dir:
+        base += "; cd urgent_response/{{ var.json[run_id].dir_name }}"
+    return base + "; " + script
+
 
 def failure_callback(context):
     """
@@ -93,7 +101,7 @@ with DAG(
     prepare_directory = SSHOperator(
         task_id="00a_prepare_directory_fpm2.sh",
         ssh_conn_id='ssh',
-        command="source ~/.bash_profile; export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\n')  && 00a_prepare_directory_fpm2.sh \"$VARIABLE\"",
+        command=ssh_cmd("export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\\n') && 00a_prepare_directory_fpm2.sh \"$VARIABLE\"", use_dir=False),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -101,7 +109,7 @@ with DAG(
     get_dem = SSHOperator(
         task_id="00_get_dem_adv.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 00_get_dem_adv.sh ""',
+        command=ssh_cmd('00_get_dem_adv.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -109,7 +117,7 @@ with DAG(
     update_download_config = SSHOperator(
         task_id="01a_update_download_config.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 01a_update_download_config.sh ""',
+        command=ssh_cmd('01a_update_download_config.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -117,7 +125,7 @@ with DAG(
     download= SSHOperator(
         task_id="01b_download.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 01b_download.sh ""',
+        command=ssh_cmd('01b_download.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -125,7 +133,7 @@ with DAG(
     symlink= SSHOperator(
         task_id="02a_symlink_data.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 02a_symlink_data.sh ""',
+        command=ssh_cmd('02a_symlink_data.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -133,7 +141,7 @@ with DAG(
     dpm2_response_setup= SSHOperator(
         task_id="03_create_run_script_xpm2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 03_create_run_script_xpm2.sh ""',
+        command=ssh_cmd('03_create_run_script_xpm2.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -141,7 +149,7 @@ with DAG(
     auto_control_run1= SSHOperator(
         task_id="04_auto_control.sh_start_run1.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run1" "start" "run1" "run1"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run1" "start" "run1" "run1"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -149,7 +157,7 @@ with DAG(
     auto_control_run2= SSHOperator(
         task_id="04_auto_control.sh_start_run2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run2" "start" "run2" "run2"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2" "start" "run2" "run2"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -157,7 +165,7 @@ with DAG(
     auto_control_run2x5= SSHOperator(
         task_id="04_auto_control.sh_start_run2x5.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run2x5" "start" "run2x5" "run2x5"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2x5" "start" "run2x5" "run2x5"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -165,7 +173,7 @@ with DAG(
     auto_control_run3= SSHOperator(
         task_id="04_auto_control.sh_start_run3.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run3" "start" "run3" "run3"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run3" "start" "run3" "run3"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -173,7 +181,7 @@ with DAG(
     auto_control_run4= SSHOperator(
         task_id="04_auto_control.sh_start_run4.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run4" "start" "run4" "run4"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run4" "start" "run4" "run4"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -181,7 +189,7 @@ with DAG(
     auto_control_run5= SSHOperator(
         task_id="04_auto_control.sh_start_run5.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run5" "start" "run5" "run5"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run5" "start" "run5" "run5"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -189,7 +197,7 @@ with DAG(
     auto_control_run6= SSHOperator(
         task_id="04_auto_control.sh_start_run6.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run6" "start" "run6" "run6"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run6" "start" "run6" "run6"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -197,7 +205,7 @@ with DAG(
     auto_control_run7= SSHOperator(
         task_id="04_auto_control.sh_start_run7.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 04_auto_control.sh "{{var.json[run_id].dir_name}}_run7" "start" "run7" "run7"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run7" "start" "run7" "run7"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -205,28 +213,34 @@ with DAG(
     post_run6_geocode_parallel= SSHOperator(
         task_id="05_post_run6_geocode_parallel.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 05_post_run6_geocode_parallel.sh ""',
+        command=ssh_cmd('05_post_run6_geocode_parallel.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
 
     merge_fpm2_geo_files = SSHOperator(
-    task_id="07_merge_fpm2_geo_files.sh",
-    ssh_conn_id='ssh',
-    command='source ~/.bash_profile; cd urgent_response/{{var.json[run_id].dir_name}}; 07_merge_fpm2_geo_files.sh ""',
-    cmd_timeout=None,
-    conn_timeout=None
+        task_id="07_merge_fpm2_geo_files.sh",
+        ssh_conn_id='ssh',
+        command=ssh_cmd('07_merge_fpm2_geo_files.sh ""'),
+        cmd_timeout=None,
+        conn_timeout=None
     )
 
+    compute_layovershadow = SSHOperator(
+        task_id="06_compute_layovershadow.sh",
+        ssh_conn_id='ssh',
+        command=ssh_cmd('06_compute_layovershadow.sh ""'),
+        cmd_timeout=None,
+        conn_timeout=None
+    )
 
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id = 'slack_webhook_fpm2',
-        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{var.json[run_id].dir_name}}/fpm2/fpm2.tar .\n```\n \n',
+        message=':blob_excited:On your MacBook, run the following scripts to download FPM2 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{ var.json[run_id].dir_name }}/fpm2/fpm2.tar .\n```\n \n',
         channel='#fpm2-sarfinder-aws-hpc',
         username='airflow'
     )
-    
 
     update_job_status = SimpleHttpOperator(
         task_id='update_job_status',
@@ -243,15 +257,14 @@ with DAG(
 
     )
 
-    archive_task = SSHOperator(
-        task_id='response_archive',
-        ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; archive_responses.sh -f {{ var.json[run_id].dir_name }}',
-        cmd_timeout=None,
-        conn_timeout=None
-    )
+    # archive_task = SSHOperator(
+    #     task_id='response_archive',
+    #     ssh_conn_id='ssh',
+    #     command=ssh_cmd('archive_responses.sh -f {{ var.json[run_id].dir_name }}'),
+    #     cmd_timeout=None,
+    #     conn_timeout=None
+    # )
 
-    
     cleanup_task = PythonOperator(
         task_id='cleanup_variables',
         python_callable=cleanup_variables,
@@ -260,9 +273,8 @@ with DAG(
 
     )
     
-    
 
 
     set_variable_task >> prepare_directory >> [get_dem, update_download_config]
     update_download_config >> download >> symlink
-    [get_dem, symlink] >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> post_run6_geocode_parallel >> merge_fpm2_geo_files >> send_slack >>  update_job_status  >> archive_task >> cleanup_task
+    [get_dem, symlink] >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> post_run6_geocode_parallel >> merge_fpm2_geo_files >> compute_layovershadow >> send_slack >>  update_job_status >> cleanup_task

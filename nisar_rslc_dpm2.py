@@ -19,6 +19,14 @@ from airflow.operators.dummy import DummyOperator
 import requests
 name = "NI_RSLC_DPM2"
 
+SETUP_SCRIPT = "/home/ubuntu/insarscripts/stack_processor_aws/env_setup/setup_nisar_aws.sh"
+
+def ssh_cmd(script: str, use_dir: bool = True) -> str:
+    base = "source " + SETUP_SCRIPT
+    if use_dir:
+        base += "; cd urgent_response/{{ var.json[run_id].dir_name }}"
+    return base + "; " + script
+
 
 def failure_callback(context):
     """
@@ -173,7 +181,7 @@ with (DAG(
         task_id="00a_prepare_directory_dpm2.sh",
         ssh_conn_id='ssh',
 #        command=f'source ~/.bash_profile; echo VARIABLES: {json.dumps({{ var.value[run_id] }})}; 00a_prepare_directory_dpm2.sh {json.dumps({{ var.value[run_id] }})}',
-        command="source ~/.bash_profile; export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\n')  && 00a_prepare_directory_dpm2.sh \"$VARIABLE\"",
+        command=ssh_cmd("export VARIABLE=$(echo '{{ var.value[run_id] }}' | tr -d '\n')  && 00a_prepare_directory_dpm2.sh \"$VARIABLE\"", use_dir=False),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -181,7 +189,7 @@ with (DAG(
     get_dem = SSHOperator(
         task_id="00_get_dem_adv.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 00_get_dem_adv.sh ""',
+        command=ssh_cmd('00_get_dem_adv.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -189,7 +197,7 @@ with (DAG(
     update_download_config = SSHOperator(
         task_id="01a_update_download_config.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01a_update_download_config.sh ""',
+        command=ssh_cmd('01a_update_download_config.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -197,7 +205,7 @@ with (DAG(
     download = SSHOperator(
         task_id="01b_download.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 01b_download.sh ""',
+        command=ssh_cmd('01b_download.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -205,7 +213,7 @@ with (DAG(
     symlink = SSHOperator(
         task_id="02a_symlink_data.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 02a_symlink_data.sh ""',
+        command=ssh_cmd('02a_symlink_data.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -213,7 +221,7 @@ with (DAG(
     stackproc_runfile_setup = SSHOperator(
         task_id="03_create_run_script_nisar.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 03_create_run_script_nisar.sh ""',
+        command=ssh_cmd('03_create_run_script_nisar.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -230,7 +238,7 @@ with (DAG(
         task_id="04_auto_control.sh_start_run1.sh",
         ssh_conn_id='ssh',
 #        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; echo $PATH; which sbatch;',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run1" "start" "run1" "run1"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run1" "start" "run1" "run1"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -238,7 +246,7 @@ with (DAG(
     auto_control_run2 = SSHOperator(
         task_id="04_auto_control.sh_start_run2.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2" "start" "run2" "run2"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2" "start" "run2" "run2"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -246,7 +254,7 @@ with (DAG(
     auto_control_run3 = SSHOperator(
         task_id="04_auto_control.sh_start_run3.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run3" "start" "run3" "run3"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run3" "start" "run3" "run3"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -254,7 +262,7 @@ with (DAG(
     create_dpm2_runfiles = SSHOperator(
         task_id="05b_create_dpm2_runfiles",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 05b_create_dpm2_runfiles.sh ""',
+        command=ssh_cmd('05b_create_dpm2_runfiles.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -262,7 +270,7 @@ with (DAG(
     auto_control_run_dpm2_1 = SSHOperator(
         task_id="06_run_dpm2_1",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_1" "start" "run_dpm2_1" "run_dpm2_1"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_1" "start" "run_dpm2_1" "run_dpm2_1"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -270,7 +278,7 @@ with (DAG(
     auto_control_run_dpm2_2 = SSHOperator(
         task_id="06_run_dpm2_2",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_2" "start" "run_dpm2_2" "run_dpm2_2"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_2" "start" "run_dpm2_2" "run_dpm2_2"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -278,7 +286,7 @@ with (DAG(
     auto_control_run_dpm2_3 = SSHOperator(
         task_id="06_run_dpm2_3",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_3" "start" "run_dpm2_3" "run_dpm2_3"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_3" "start" "run_dpm2_3" "run_dpm2_3"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -292,7 +300,7 @@ with (DAG(
     auto_control_run_dpm2_4 = SSHOperator(
         task_id="06_run_dpm2_4",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_4" "start" "run_dpm2_4" "run_dpm2_4"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_4" "start" "run_dpm2_4" "run_dpm2_4"'),
         cmd_timeout=None,
         conn_timeout=None,
         trigger_rule=TriggerRule.ONE_SUCCESS,
@@ -301,7 +309,7 @@ with (DAG(
     auto_control_run_dpm2_5 = SSHOperator(
         task_id="06_run_dpm2_5",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; rm -rf dpm2/probGV; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_5" "start" "run_dpm2_5" "run_dpm2_5"',
+        command=ssh_cmd('rm -rf dpm2/probGV; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_5" "start" "run_dpm2_5" "run_dpm2_5"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -309,7 +317,7 @@ with (DAG(
     auto_control_run_dpm2_6 = SSHOperator(
         task_id="06_run_dpm2_6",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_6" "start" "run_dpm2_6" "run_dpm2_6"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_6" "start" "run_dpm2_6" "run_dpm2_6"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -317,7 +325,7 @@ with (DAG(
     auto_control_run_dpm2_7 = SSHOperator(
         task_id="06_run_dpm2_7",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_7" "start" "run_dpm2_7" "run_dpm2_7"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_7" "start" "run_dpm2_7" "run_dpm2_7"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -325,7 +333,7 @@ with (DAG(
     auto_control_run_dpm2_8 = SSHOperator(
         task_id="06_run_dpm2_8",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_8" "start" "run_dpm2_8" "run_dpm2_8"',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run_dpm2_8" "start" "run_dpm2_8" "run_dpm2_8"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -333,7 +341,7 @@ with (DAG(
     upload_greyscale = SSHOperator(
         task_id="08_upload_greyscale.sh",
         ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; 08_upload_greyscale.sh "{{ var.json[run_id].dir_name }}" ',
+        command=ssh_cmd('08_upload_greyscale.sh "{{ var.json[run_id].dir_name }}" '),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -470,13 +478,13 @@ with (DAG(
         })
     )
 
-    archive_task = SSHOperator(
-        task_id='response_archive',
-        ssh_conn_id='ssh',
-        command='source ~/.bash_profile; cd urgent_response/{{ var.json[run_id].dir_name }}; archive_responses.sh -f {{ var.json[run_id].dir_name }}',
-        cmd_timeout=None,
-        conn_timeout=None
-    )
+    # archive_task = SSHOperator(
+    #     task_id='response_archive',
+    #     ssh_conn_id='ssh',
+    #     command=ssh_cmd('archive_responses.sh -f {{ var.json[run_id].dir_name }}'),
+    #     cmd_timeout=None,
+    #     conn_timeout=None
+    # )
 
 
     cleanup_task = PythonOperator(
@@ -492,7 +500,7 @@ with (DAG(
     [get_dem, symlink]>> stackproc_runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> auto_control_run3 >> create_dpm2_runfiles >> auto_control_run_dpm2_1 >> auto_control_run_dpm2_2 >> auto_control_run_dpm2_3 >> \
     auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
-    send_slack >> upload_greyscale >> update_job_status >> archive_task >> cleanup_task
+    send_slack >> upload_greyscale >> update_job_status >> cleanup_task
 
 
     # Break here to wait, use a Deferring Task (Sensor etc) to check for variable change
