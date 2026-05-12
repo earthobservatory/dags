@@ -523,10 +523,10 @@ with (DAG(
         conn_timeout=None
     )
 
-    compute_layovershadow = SSHOperator(
-        task_id="06_compute_layovershadow.sh",
+    apply_layovershadow = SSHOperator(
+        task_id="06_apply_layovershadow.sh",
         ssh_conn_id='ssh',
-        command=ssh_cmd('06_compute_layovershadow.sh ""'),
+        command=ssh_cmd('06_apply_layovershadow.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -580,7 +580,7 @@ with (DAG(
     generate_slcstk2cor_update >> conditional_continuation >> [branch_generate_ifg, auto_control_run_dpm2_4]
     branch_generate_ifg >> generate_ifg
     auto_control_run_dpm2_4 >> auto_control_run_dpm2_5 >> auto_control_run_dpm2_6 >> auto_control_run_dpm2_7 >> auto_control_run_dpm2_8 >> \
-    compute_layovershadow >> send_slack >> upload_greyscale >> update_job_status >>  cleanup_task
+    apply_layovershadow >> upload_greyscale >> send_slack >> update_job_status >>  cleanup_task
 
 
     # Break here to wait, use a Deferring Task (Sensor etc) to check for variable change

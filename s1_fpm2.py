@@ -226,10 +226,10 @@ with DAG(
         conn_timeout=None
     )
 
-    compute_layovershadow = SSHOperator(
-        task_id="06_compute_layovershadow.sh",
+    apply_layovershadow = SSHOperator(
+        task_id="06_apply_layovershadow.sh",
         ssh_conn_id='ssh',
-        command=ssh_cmd('06_compute_layovershadow.sh ""'),
+        command=ssh_cmd('06_apply_layovershadow.sh ""'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -277,4 +277,4 @@ with DAG(
 
     set_variable_task >> prepare_directory >> [get_dem, update_download_config]
     update_download_config >> download >> symlink
-    [get_dem, symlink] >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> post_run6_geocode_parallel >> merge_fpm2_geo_files >> compute_layovershadow >> send_slack >>  update_job_status >> cleanup_task
+    [get_dem, symlink] >> dpm2_response_setup >> auto_control_run1 >> auto_control_run2 >> auto_control_run2x5 >> auto_control_run3 >> auto_control_run4 >> auto_control_run5 >> auto_control_run6 >> auto_control_run7 >> post_run6_geocode_parallel >> merge_fpm2_geo_files >> apply_layovershadow >> send_slack >>  update_job_status >> cleanup_task
