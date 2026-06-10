@@ -117,7 +117,7 @@ with DAG(
 
     
     auto_control_run1= SSHOperator(
-        task_id="auto_control_run1",
+        task_id="run_1_cod_alos2App",
         ssh_conn_id='ssh',
         command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run1" "start" "run1" "run1"'),
         cmd_timeout=None,
@@ -125,7 +125,7 @@ with DAG(
     )
 
     auto_control_run2= SSHOperator(
-        task_id="auto_control_run2",
+        task_id="run_2_cod_intamp2coricor",
         ssh_conn_id='ssh',
         command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run2" "start" "run2" "run2"'),
         cmd_timeout=None,
@@ -133,7 +133,7 @@ with DAG(
     )
 
     auto_control_run3= SSHOperator(
-        task_id="auto_control_run3",
+        task_id="run_3_cods",
         ssh_conn_id='ssh',
         command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run3" "start" "run3" "run3"'),
         cmd_timeout=None,
@@ -141,7 +141,7 @@ with DAG(
     )
 
     auto_control_run4= SSHOperator(
-        task_id="auto_control_run4",
+        task_id="run_4_dpm1_qdpm3",
         ssh_conn_id='ssh',
         command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run4" "start" "run4" "run4"'),
         cmd_timeout=None,
@@ -149,9 +149,17 @@ with DAG(
     )
 
     auto_control_run5= SSHOperator(
-        task_id="auto_control_run5",
+        task_id="run_5_ifg",
         ssh_conn_id='ssh',
         command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run4" "start" "run5" "run5"'),
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
+    auto_control_run6= SSHOperator(
+        task_id="run_6_ifg_productize",
+        ssh_conn_id='ssh',
+        command=ssh_cmd('04_auto_control.sh "{{ var.json[run_id].dir_name }}_run4" "start" "run6" "run6"'),
         cmd_timeout=None,
         conn_timeout=None
     )
@@ -202,4 +210,4 @@ with DAG(
     set_variable_task >> prepare_directory >> runfile_setup >> \
     auto_control_run1 >> auto_control_run2 >> \
     auto_control_run3 >> auto_control_run4 >> \
-    auto_control_run5 >> send_slack >> update_job_status >> cleanup_task
+    auto_control_run5 >> auto_control_run6 >> send_slack >> update_job_status >> cleanup_task
