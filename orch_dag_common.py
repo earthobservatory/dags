@@ -1,6 +1,6 @@
 # ────────────────────────────────────────────────────────────────────────────
 # COPIED by `orch gen-dag` from orch/workflow/airflow/orch_dag_common.py
-# Generator: version 1
+# Generator: version 2
 # Edit it there and re-run `orch gen-dag` — DO NOT EDIT HERE.
 # ────────────────────────────────────────────────────────────────────────────
 """Shared plumbing for orch-generated Airflow DAGs.
@@ -21,9 +21,11 @@ re-run ``orch gen-dag``.
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 
 import requests
+from airflow.exceptions import AirflowException, AirflowSkipException
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
@@ -44,6 +46,32 @@ RUN_PAYLOAD = "{{ var.value[run_id] }}"
 
 INIT_STEP = "00a_prepare_directory"
 
+# `orch run` exits this when every task in the slice was gated out by `when:`.
+# Under Airflow every task is a one-task slice, so it means exactly "this task
+# was gated out". Kept in sync with orch.core.runner.EXIT_ALL_SKIPPED.
+SKIP_EXIT_CODE = 99
+
+# Echoed to stderr by the remote wrapper when orch reports the skip. See
+# _skip_wrapper for why the literal must never appear in the command itself.
+SKIP_MARKER = "ORCH_SKIPPED_99"
+
+# Every generated task and the whole tail run on this rule: all upstreams
+# terminal, none FAILED or UPSTREAM_FAILED — a SKIPPED upstream counts as OK.
+# That is a bit-exact reproduction of the pre-skip behaviour, where a gated-out
+# task exited 0 and satisfied `all_success`.
+#
+# The tail matters most: emit.py wires EVERY leaf into slack -> job status ->
+# cleanup, so under `all_success` a single skipped branch would suppress the
+# SARFinder status POST and leave the job stuck in "running" forever.
+#
+# Not `none_failed_min_one_success` — it would break the degenerate run where
+# every branch skipped, which today is all-green and does reach the tail.
+# Not `all_done` — it fires on upstream FAILURE too, so a failed run would post
+# "products are ready" and then POST success, overwriting the failure the
+# on_failure_callback had already reported.
+# Not `none_failed_or_skipped` — deprecated in Airflow 2.2, removed in 2.5.
+DEFAULT_TRIGGER_RULE = "none_failed"
+
 
 # ── command construction ─────────────────────────────────────────────────────
 
@@ -60,25 +88,104 @@ def ssh_cmd(script: str, *, setup_cmd: str, work_root: str, use_dir: bool = True
     return f"{base}; {script}"
 
 
+def _skip_wrapper(script: str) -> str:
+    """Wrap a command so an all-skipped `orch run` is detectable over SSH.
+
+    POSIX sh only — the remote login shell is not guaranteed to be bash.
+
+    The marker is assembled with ``printf`` from three separate arguments
+    instead of being echoed as a literal, and that is LOAD-BEARING. Older ssh
+    providers raise ``AirflowException(f"error running cmd: {self.command}, "
+    f"error: {stderr}")`` — the command text itself lands in the message. If
+    the contiguous literal appeared in the command, ``is_skip_error`` would
+    match on EVERY genuine failure and silently turn it into a skip. Assembling
+    it at runtime means the string exists only in real stderr. Do not
+    "simplify" this line.
+    """
+    return (
+        f"{script}; rc=$?; "
+        f'if [ "$rc" -eq {SKIP_EXIT_CODE} ]; then '
+        f"printf '%s_%s_%s\\n' ORCH SKIPPED {SKIP_EXIT_CODE} >&2; fi; "
+        'exit "$rc"'
+    )
+
+
+_SKIP_PATTERNS = (SKIP_MARKER, f"exit status = {SKIP_EXIT_CODE}")
+
+
+def is_skip_error(message: str) -> bool:
+    """True when an SSHOperator failure is really an orch "gated out" signal.
+
+    Two patterns because the host's ssh-provider generation is unknown: newer
+    ones put ``exit status = 99`` in the exception message, older ones carry
+    the command's stderr (and so the marker). Module-level and pure so the test
+    suite can exercise it without Airflow installed.
+    """
+    return any(p in message for p in _SKIP_PATTERNS)
+
+
+class OrchSSHOperator(SSHOperator):
+    """SSHOperator that renders a `when:`-gated orch task as SKIPPED, not failed.
+
+    Gates are evaluated inside ``orch run`` on the remote head node — against
+    the live config.txt and filesystem — so the decision cannot be made here or
+    at DAG-parse time. This turns the remote signal into Airflow's own state.
+
+    Failure mode if the provider surfaces neither pattern: the task goes red
+    rather than pink. Loud and safe — the reverse direction (a real failure
+    silently becoming a skip) is the one that must never happen, and it is
+    guarded by ``_skip_wrapper``'s runtime-assembled marker.
+    """
+
+    def execute(self, context):
+        try:
+            return super().execute(context)
+        except AirflowSkipException:
+            # Provider-native skip_on_exit_code already decided. Must be caught
+            # first: AirflowSkipException subclasses AirflowException.
+            raise
+        except AirflowException as e:
+            if is_skip_error(str(e)):
+                raise AirflowSkipException(
+                    f"orch: {self.task_id} gated out by its `when:` condition"
+                ) from None
+            raise
+
+
 def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, **kwargs):
     """One Airflow task = one orch pipeline task.
 
     Runs ``orch run <name> <name>`` rather than ``orch run-step``: the ``run``
     path substitutes ``${key}`` argv against config.txt, evaluates the task's
-    ``when:`` gates (a gated-out task is recorded ``skipped`` and exits 0, so it
-    shows green in Airflow), records the manifest entry, and tees output to
+    ``when:`` gates, records the manifest entry, and tees output to
     ``log/orch/<name>.log``. ``run-step`` does none of that.
+
+    A gated-out task exits ``SKIP_EXIT_CODE`` and renders as Airflow SKIPPED
+    (see OrchSSHOperator). ``trigger_rule="none_failed"`` then keeps that skip
+    from cascading: every downstream task still runs and evaluates its OWN
+    gate, exactly as a local ``orch run`` does. With the default
+    ``all_success``, Airflow would prune whole branches without ever consulting
+    their gates — which would silently drop real work, e.g. the ungated
+    ``dpm23/upload_greyscale`` on a job that simply didn't select dpm23.
 
     ``orch_name`` is the orch task id and may contain ``/`` (block namespacing);
     ``task_id`` is the Airflow id within its TaskGroup and may not.
     """
     kwargs.setdefault("cmd_timeout", None)
     kwargs.setdefault("conn_timeout", None)
-    return SSHOperator(
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
+    # Native support is exact where it exists; the OrchSSHOperator fallback
+    # covers the providers that lack it. Probing beats a version check.
+    try:  # pragma: no cover - depends on the host's provider version
+        if "skip_on_exit_code" in inspect.signature(SSHOperator.__init__).parameters:
+            kwargs.setdefault("skip_on_exit_code", SKIP_EXIT_CODE)
+    except (TypeError, ValueError):
+        pass
+    return OrchSSHOperator(
         task_id=task_id,
         ssh_conn_id=ssh_conn_id,
         command=ssh_cmd(
-            f"orch run '{orch_name}' '{orch_name}' --job-dir .",
+            _skip_wrapper(f"orch run '{orch_name}' '{orch_name}' --job-dir ."),
             setup_cmd=setup_cmd,
             work_root=work_root,
         ),
@@ -186,31 +293,36 @@ def set_variables_task(dag_id: str):
     )
 
 
-def cleanup_variables_task():
-    def cleanup_variables(**kwargs):
-        Variable.delete(kwargs["run_id"])
+def cleanup_variables_task(**kwargs):
+    def cleanup_variables(**context):
+        Variable.delete(context["run_id"])
 
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
     return PythonOperator(
         task_id="cleanup_variables",
         python_callable=cleanup_variables,
         provide_context=True,
+        **kwargs,
     )
 
 
 # ── tail ─────────────────────────────────────────────────────────────────────
 
 
-def slack_tail(*, slack_conn_id, slack_channel, message):
+def slack_tail(*, slack_conn_id, slack_channel, message, **kwargs):
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
     return SlackWebhookOperator(
         task_id="send_slack_notifications",
         slack_webhook_conn_id=slack_conn_id,
         message=message,
         channel=slack_channel,
         username="airflow",
+        **kwargs,
     )
 
 
-def job_status_task(*, http_conn_id, endpoint, status="success"):
+def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
     return SimpleHttpOperator(
         task_id="update_job_status",
         http_conn_id=http_conn_id,
@@ -219,6 +331,7 @@ def job_status_task(*, http_conn_id, endpoint, status="success"):
         headers={"Content-Type": "application/json"},
         data=json.dumps({"status": status, "dag_run_id": "{{ run_id }}"}),
         extra_options={"check_response": False},
+        **kwargs,
     )
 
 
@@ -232,7 +345,7 @@ def apply_customizations(dag, tasks: dict, *, dag_id: str) -> None:
     edges, or change trigger rules. ``orch gen-dag`` never writes or deletes it,
     so structural customization survives regeneration.
 
-    ``tasks`` is keyed by ORCH task name (``dpm23/run_dpm_ccd``), not the
+    ``tasks`` is keyed by ORCH task name (``dpm23/run_ccd_1``), not the
     Airflow id — deliberately, so renaming a pipeline task surfaces as a
     KeyError at DAG-parse time instead of silently dropping a customization.
     """
