@@ -61,17 +61,17 @@ with DAG(
     # task through the run-id Variable this sets.
     t_set_variables = set_variables_task(DAG_ID)
 
+    # step: 00a_prepare_directory
+    t_00_prepare_directory = orch_init_task(
+        '00_prepare_directory',
+        pipeline=PIPELINE,
+        ssh_conn_id=SSH_CONN_ID,
+        setup_cmd=SETUP_CMD,
+        work_root=WORK_ROOT,
+    )
+
     # ── stack_init  (satellite coregistration) ──────────────────────────────────
     with TaskGroup(group_id='stack_init') as tg_stack_init:
-        # step: 00a_prepare_directory
-        t_stack_init__00_prepare_directory = orch_init_task(
-            '00_prepare_directory',
-            pipeline=PIPELINE,
-            ssh_conn_id=SSH_CONN_ID,
-            setup_cmd=SETUP_CMD,
-            work_root=WORK_ROOT,
-        )
-
         # step: 02a_symlink_data
         t_stack_init__03_symlink_data = orch_task(
             '03_symlink_data',
@@ -505,7 +505,7 @@ with DAG(
 
     # ── task registry — keyed by ORCH name (see apply_customizations) ───────────
     TASKS = {
-        'stack_init/00_prepare_directory': t_stack_init__00_prepare_directory,
+        '00_prepare_directory': t_00_prepare_directory,
         'stack_init/03_symlink_data': t_stack_init__03_symlink_data,
         'stack_init/04_create_run_script': t_stack_init__04_create_run_script,
         'stack_init/coreg_run01a': t_stack_init__coreg_run01a,
@@ -555,9 +555,9 @@ with DAG(
 
     # ── wiring — mirrors the pipeline `needs:` DAG, one edge per line ───────────
     # Head: nothing can run before the payload is in place.
-    t_set_variables >> t_stack_init__00_prepare_directory
+    t_set_variables >> t_00_prepare_directory
 
-    t_stack_init__00_prepare_directory >> t_stack_init__03_symlink_data
+    t_00_prepare_directory >> t_stack_init__03_symlink_data
     t_stack_init__03_symlink_data >> t_stack_init__04_create_run_script
     t_stack_init__04_create_run_script >> t_stack_init__coreg_run01a
     t_stack_init__coreg_run01a >> t_stack_init__coreg_run01b
