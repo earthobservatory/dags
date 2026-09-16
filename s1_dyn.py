@@ -211,7 +211,7 @@ with DAG(
 
     # ── icors  (product branch) ─────────────────────────────────────────────────
     with TaskGroup(group_id='icors') as tg_icors:
-        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm3, dpm23, dpm13)
+        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm2, dpm3, dpm23, dpm13)
         t_icors__generate = orch_task(
             'generate',
             'icors/generate',
@@ -462,30 +462,30 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-    # ── fpm  (product branch) ───────────────────────────────────────────────────
-    with TaskGroup(group_id='fpm') as tg_fpm:
+    # ── fpm2  (product branch) ──────────────────────────────────────────────────
+    with TaskGroup(group_id='fpm2') as tg_fpm2:
         # step: geocode_fpm2   when: modes_in(fpm2)
-        t_fpm__geocode_fpm2 = orch_task(
+        t_fpm2__geocode_fpm2 = orch_task(
             'geocode_fpm2',
-            'fpm/geocode_fpm2',
+            'fpm2/geocode_fpm2',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: merge_fpm2   when: file_exist("run_files/run_params_dask_amps")
-        t_fpm__merge_fpm2 = orch_task(
+        t_fpm2__merge_fpm2 = orch_task(
             'merge_fpm2',
-            'fpm/merge_fpm2',
+            'fpm2/merge_fpm2',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: publish_product
-        t_fpm__fpm2_publish_product = orch_task(
+        t_fpm2__fpm2_publish_product = orch_task(
             'fpm2_publish_product',
-            'fpm/fpm2_publish_product',
+            'fpm2/fpm2_publish_product',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
@@ -550,9 +550,9 @@ with DAG(
         'dpm13/run_qdpm13_1': t_dpm13__run_qdpm13_1,
         'dpm13/run_qdpm13_2': t_dpm13__run_qdpm13_2,
         'dpm13/publish_product': t_dpm13__publish_product,
-        'fpm/geocode_fpm2': t_fpm__geocode_fpm2,
-        'fpm/merge_fpm2': t_fpm__merge_fpm2,
-        'fpm/fpm2_publish_product': t_fpm__fpm2_publish_product,
+        'fpm2/geocode_fpm2': t_fpm2__geocode_fpm2,
+        'fpm2/merge_fpm2': t_fpm2__merge_fpm2,
+        'fpm2/fpm2_publish_product': t_fpm2__fpm2_publish_product,
     }
 
     # ── wiring — mirrors the pipeline `needs:` DAG, one edge per line ───────────
@@ -604,15 +604,15 @@ with DAG(
     t_dpm13__create_runfiles >> t_dpm13__run_qdpm13_1
     t_dpm13__run_qdpm13_1 >> t_dpm13__run_qdpm13_2
     t_dpm13__run_qdpm13_2 >> t_dpm13__publish_product
-    t_amps__submit >> t_fpm__geocode_fpm2
-    t_fpm__geocode_fpm2 >> t_fpm__merge_fpm2
-    t_fpm__merge_fpm2 >> t_fpm__fpm2_publish_product
+    t_amps__submit >> t_fpm2__geocode_fpm2
+    t_fpm2__geocode_fpm2 >> t_fpm2__merge_fpm2
+    t_fpm2__merge_fpm2 >> t_fpm2__fpm2_publish_product
 
     # Tail: every branch tip converges on the notification chain.
     t_ifgs__submit >> t_send_slack
     t_dpm23__upload_greyscale >> t_send_slack
     t_dpm13__publish_product >> t_send_slack
-    t_fpm__fpm2_publish_product >> t_send_slack
+    t_fpm2__fpm2_publish_product >> t_send_slack
     t_send_slack >> t_update_job_status
     t_update_job_status >> t_cleanup_variables
 
