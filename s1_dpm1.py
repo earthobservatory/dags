@@ -171,6 +171,16 @@ with DAG(
         conn_timeout=None
     )
 
+    # Publishes the COD as a thresholdable map in SARFinder's My maps, as the
+    # NISAR DPM1 DAGs do: 08_upload_greyscale.sh tiles it on a fixed -1..1 scale.
+    upload_greyscale = SSHOperator(
+        task_id="08_upload_greyscale.sh",
+        ssh_conn_id='ssh',
+        command=ssh_cmd('08_upload_greyscale.sh "{{ var.json[run_id].dir_name }}" '),
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id = 'slack_webhook_dpm1',
@@ -213,4 +223,4 @@ with DAG(
 
     set_variable_task >> prepare_directory >> [get_dem, update_download_config]
     update_download_config >> download >> symlink
-    [get_dem, symlink] >> dpm1_response_setup >> auto_control_run1 >> auto_control_run2 >> send_slack >> update_job_status >> cleanup_task
+    [get_dem, symlink] >> dpm1_response_setup >> auto_control_run1 >> auto_control_run2 >> send_slack >> upload_greyscale >> update_job_status >> cleanup_task
