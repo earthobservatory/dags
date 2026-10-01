@@ -411,6 +411,14 @@ with (DAG(
     )
 
 
+    upload_greyscale = SSHOperator(
+        task_id="08_upload_greyscale.sh",
+        ssh_conn_id='ssh',
+        command=ssh_cmd('08_upload_greyscale.sh "{{ var.json[run_id].dir_name }}"'),
+        cmd_timeout=None,
+        conn_timeout=None
+    )
+
     cleanup_task = PythonOperator(
         task_id='cleanup_variables',
         python_callable=cleanup_variables,
@@ -422,7 +430,7 @@ with (DAG(
     send_slack = SlackWebhookOperator(
         task_id='send_slack_notifications',
         slack_webhook_conn_id='slack_webhook_dpm2',
-        message=':blob_excited:On your MacBook, run the following scripts to download DPM2 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{ var.json[run_id].dir_name }}/dpm3/probGV/\*tif .\n```\n \n',
+        message=':blob_excited:On your MacBook, run the following scripts to download DPM3 products:blob_excited:\n```\nscp -r aws-hpc2:/home/ubuntu/urgent_response/{{ var.json[run_id].dir_name }}/dpm3/probGV/\\*tif .\n```\n \n',
         channel='#dpm2-sarfinder-aws-hpc',
         username='airflow'
     )
@@ -448,5 +456,5 @@ with (DAG(
     # Both branches must finish before weighted mean
     [auto_control_run_ccd_8, auto_control_run_icor_5] >> run_dpm3_weighted_mean
 
-    run_dpm3_weighted_mean >> \
+    run_dpm3_weighted_mean >> upload_greyscale >> \
     send_slack >> cleanup_task
