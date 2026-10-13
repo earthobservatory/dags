@@ -227,7 +227,7 @@ with DAG(
 
     # ── cors  (product branch) ──────────────────────────────────────────────────
     with TaskGroup(group_id='cors') as tg_cors:
-        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm2, dpm3, dpm23, dpm13)
+        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm3, dpm1)
         t_cors__generate = orch_task(
             'generate',
             'cors/generate',
@@ -247,7 +247,7 @@ with DAG(
 
     # ── icors  (product branch) ─────────────────────────────────────────────────
     with TaskGroup(group_id='icors') as tg_icors:
-        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm2, dpm3, dpm23, dpm13)
+        # step: 05_generate_sarstack_runfiles   when: modes_in(dpm3, dpm1)
         t_icors__generate = orch_task(
             'generate',
             'icors/generate',
@@ -305,194 +305,194 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-    # ── dpm23  (product branch) ─────────────────────────────────────────────────
-    with TaskGroup(group_id='dpm23') as tg_dpm23:
-        # step: 05b_create_dpm23_runfiles   when: modes_in(dpm2, dpm3, dpm23)
-        t_dpm23__create_dpm23_runfiles = orch_task(
-            'create_dpm23_runfiles',
-            'dpm23/create_dpm23_runfiles',
+    # ── dpm3  (product branch) ──────────────────────────────────────────────────
+    with TaskGroup(group_id='dpm3') as tg_dpm3:
+        # step: 05b_create_dpm3_runfiles   when: modes_in(dpm3)
+        t_dpm3__create_runfiles = orch_task(
+            'create_runfiles',
+            'dpm3/create_runfiles',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_1 = orch_task(
+        t_dpm3__run_ccd_1 = orch_task(
             'run_ccd_1',
-            'dpm23/run_ccd_1',
+            'dpm3/run_ccd_1',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_2 = orch_task(
+        t_dpm3__run_ccd_2 = orch_task(
             'run_ccd_2',
-            'dpm23/run_ccd_2',
+            'dpm3/run_ccd_2',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_3 = orch_task(
+        t_dpm3__run_ccd_3 = orch_task(
             'run_ccd_3',
-            'dpm23/run_ccd_3',
+            'dpm3/run_ccd_3',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_4 = orch_task(
+        t_dpm3__run_ccd_4 = orch_task(
             'run_ccd_4',
-            'dpm23/run_ccd_4',
+            'dpm3/run_ccd_4',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_5 = orch_task(
+        t_dpm3__run_ccd_5 = orch_task(
             'run_ccd_5',
-            'dpm23/run_ccd_5',
+            'dpm3/run_ccd_5',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_6 = orch_task(
+        t_dpm3__run_ccd_6 = orch_task(
             'run_ccd_6',
-            'dpm23/run_ccd_6',
+            'dpm3/run_ccd_6',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_7 = orch_task(
+        t_dpm3__run_ccd_7 = orch_task(
             'run_ccd_7',
-            'dpm23/run_ccd_7',
+            'dpm3/run_ccd_7',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_ccd_1")
-        t_dpm23__run_ccd_8 = orch_task(
+        t_dpm3__run_ccd_8 = orch_task(
             'run_ccd_8',
-            'dpm23/run_ccd_8',
+            'dpm3/run_ccd_8',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_icor_1")
-        t_dpm23__run_icor_1 = orch_task(
+        t_dpm3__run_icor_1 = orch_task(
             'run_icor_1',
-            'dpm23/run_icor_1',
+            'dpm3/run_icor_1',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_icor_1")
-        t_dpm23__run_icor_2 = orch_task(
+        t_dpm3__run_icor_2 = orch_task(
             'run_icor_2',
-            'dpm23/run_icor_2',
+            'dpm3/run_icor_2',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_icor_1")
-        t_dpm23__run_icor_3 = orch_task(
+        t_dpm3__run_icor_3 = orch_task(
             'run_icor_3',
-            'dpm23/run_icor_3',
+            'dpm3/run_icor_3',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_icor_1")
-        t_dpm23__run_icor_4 = orch_task(
+        t_dpm3__run_icor_4 = orch_task(
             'run_icor_4',
-            'dpm23/run_icor_4',
+            'dpm3/run_icor_4',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: exe_run   when: file_exist("run_files/run_icor_1")
-        t_dpm23__run_icor_5 = orch_task(
+        t_dpm3__run_icor_5 = orch_task(
             'run_icor_5',
-            'dpm23/run_icor_5',
+            'dpm3/run_icor_5',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: 08_dpm3_weighted_mean   when: file_exist("run_files/run_icor_1")
-        t_dpm23__dpm3_weighted_mean = orch_task(
+        t_dpm3__dpm3_weighted_mean = orch_task(
             'dpm3_weighted_mean',
-            'dpm23/dpm3_weighted_mean',
+            'dpm3/dpm3_weighted_mean',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: publish_product
-        t_dpm23__dpm23_publish_product = orch_task(
-            'dpm23_publish_product',
-            'dpm23/dpm23_publish_product',
+        t_dpm3__publish_product = orch_task(
+            'publish_product',
+            'dpm3/publish_product',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: 93_upload_greyscale
-        t_dpm23__upload_greyscale = orch_task(
+        t_dpm3__upload_greyscale = orch_task(
             'upload_greyscale',
-            'dpm23/upload_greyscale',
+            'dpm3/upload_greyscale',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
-    # ── dpm13  (product branch) ─────────────────────────────────────────────────
-    with TaskGroup(group_id='dpm13') as tg_dpm13:
-        # step: 05_create_dpm13_runfiles   when: modes_in(dpm13)
-        t_dpm13__create_runfiles = orch_task(
+    # ── dpm1  (product branch) ──────────────────────────────────────────────────
+    with TaskGroup(group_id='dpm1') as tg_dpm1:
+        # step: 05_create_dpm1_runfiles   when: modes_in(dpm1)
+        t_dpm1__create_runfiles = orch_task(
             'create_runfiles',
-            'dpm13/create_runfiles',
+            'dpm1/create_runfiles',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_qdpm13_icod")
-        t_dpm13__run_qdpm13_1 = orch_task(
-            'run_qdpm13_1',
-            'dpm13/run_qdpm13_1',
+        # step: exe_run   when: file_exist("run_files/run_qdpm1_icod")
+        t_dpm1__run_qdpm1_1 = orch_task(
+            'run_qdpm1_1',
+            'dpm1/run_qdpm1_1',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_qdpm13_icod")
-        t_dpm13__run_qdpm13_2 = orch_task(
-            'run_qdpm13_2',
-            'dpm13/run_qdpm13_2',
+        # step: exe_run   when: file_exist("run_files/run_qdpm1_icod")
+        t_dpm1__run_qdpm1_2 = orch_task(
+            'run_qdpm1_2',
+            'dpm1/run_qdpm1_2',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
         )
 
         # step: publish_product
-        t_dpm13__publish_product = orch_task(
+        t_dpm1__publish_product = orch_task(
             'publish_product',
-            'dpm13/publish_product',
+            'dpm1/publish_product',
             ssh_conn_id=SSH_CONN_ID,
             setup_cmd=SETUP_CMD,
             work_root=WORK_ROOT,
@@ -569,27 +569,27 @@ with DAG(
         'amps/submit': t_amps__submit,
         'ifgs/generate': t_ifgs__generate,
         'ifgs/submit': t_ifgs__submit,
-        'dpm23/create_dpm23_runfiles': t_dpm23__create_dpm23_runfiles,
-        'dpm23/run_ccd_1': t_dpm23__run_ccd_1,
-        'dpm23/run_ccd_2': t_dpm23__run_ccd_2,
-        'dpm23/run_ccd_3': t_dpm23__run_ccd_3,
-        'dpm23/run_ccd_4': t_dpm23__run_ccd_4,
-        'dpm23/run_ccd_5': t_dpm23__run_ccd_5,
-        'dpm23/run_ccd_6': t_dpm23__run_ccd_6,
-        'dpm23/run_ccd_7': t_dpm23__run_ccd_7,
-        'dpm23/run_ccd_8': t_dpm23__run_ccd_8,
-        'dpm23/run_icor_1': t_dpm23__run_icor_1,
-        'dpm23/run_icor_2': t_dpm23__run_icor_2,
-        'dpm23/run_icor_3': t_dpm23__run_icor_3,
-        'dpm23/run_icor_4': t_dpm23__run_icor_4,
-        'dpm23/run_icor_5': t_dpm23__run_icor_5,
-        'dpm23/dpm3_weighted_mean': t_dpm23__dpm3_weighted_mean,
-        'dpm23/dpm23_publish_product': t_dpm23__dpm23_publish_product,
-        'dpm23/upload_greyscale': t_dpm23__upload_greyscale,
-        'dpm13/create_runfiles': t_dpm13__create_runfiles,
-        'dpm13/run_qdpm13_1': t_dpm13__run_qdpm13_1,
-        'dpm13/run_qdpm13_2': t_dpm13__run_qdpm13_2,
-        'dpm13/publish_product': t_dpm13__publish_product,
+        'dpm3/create_runfiles': t_dpm3__create_runfiles,
+        'dpm3/run_ccd_1': t_dpm3__run_ccd_1,
+        'dpm3/run_ccd_2': t_dpm3__run_ccd_2,
+        'dpm3/run_ccd_3': t_dpm3__run_ccd_3,
+        'dpm3/run_ccd_4': t_dpm3__run_ccd_4,
+        'dpm3/run_ccd_5': t_dpm3__run_ccd_5,
+        'dpm3/run_ccd_6': t_dpm3__run_ccd_6,
+        'dpm3/run_ccd_7': t_dpm3__run_ccd_7,
+        'dpm3/run_ccd_8': t_dpm3__run_ccd_8,
+        'dpm3/run_icor_1': t_dpm3__run_icor_1,
+        'dpm3/run_icor_2': t_dpm3__run_icor_2,
+        'dpm3/run_icor_3': t_dpm3__run_icor_3,
+        'dpm3/run_icor_4': t_dpm3__run_icor_4,
+        'dpm3/run_icor_5': t_dpm3__run_icor_5,
+        'dpm3/dpm3_weighted_mean': t_dpm3__dpm3_weighted_mean,
+        'dpm3/publish_product': t_dpm3__publish_product,
+        'dpm3/upload_greyscale': t_dpm3__upload_greyscale,
+        'dpm1/create_runfiles': t_dpm1__create_runfiles,
+        'dpm1/run_qdpm1_1': t_dpm1__run_qdpm1_1,
+        'dpm1/run_qdpm1_2': t_dpm1__run_qdpm1_2,
+        'dpm1/publish_product': t_dpm1__publish_product,
         'fpm2/geocode_fpm2': t_fpm2__geocode_fpm2,
         'fpm2/merge_fpm2': t_fpm2__merge_fpm2,
         'fpm2/fpm2_publish_product': t_fpm2__fpm2_publish_product,
@@ -624,38 +624,38 @@ with DAG(
     t_amps__generate >> t_amps__submit
     t_stack_init__06_stack_publish >> t_ifgs__generate
     t_ifgs__generate >> t_ifgs__submit
-    t_cors__submit >> t_dpm23__create_dpm23_runfiles
-    t_icors__submit >> t_dpm23__create_dpm23_runfiles
-    t_dpm23__create_dpm23_runfiles >> t_dpm23__run_ccd_1
-    t_dpm23__run_ccd_1 >> t_dpm23__run_ccd_2
-    t_dpm23__run_ccd_2 >> t_dpm23__run_ccd_3
-    t_dpm23__run_ccd_3 >> t_dpm23__run_ccd_4
-    t_dpm23__run_ccd_4 >> t_dpm23__run_ccd_5
-    t_dpm23__run_ccd_5 >> t_dpm23__run_ccd_6
-    t_dpm23__run_ccd_6 >> t_dpm23__run_ccd_7
-    t_dpm23__run_ccd_7 >> t_dpm23__run_ccd_8
-    t_dpm23__create_dpm23_runfiles >> t_dpm23__run_icor_1
-    t_dpm23__run_icor_1 >> t_dpm23__run_icor_2
-    t_dpm23__run_icor_2 >> t_dpm23__run_icor_3
-    t_dpm23__run_icor_3 >> t_dpm23__run_icor_4
-    t_dpm23__run_icor_4 >> t_dpm23__run_icor_5
-    t_dpm23__run_ccd_8 >> t_dpm23__dpm3_weighted_mean
-    t_dpm23__run_icor_5 >> t_dpm23__dpm3_weighted_mean
-    t_dpm23__dpm3_weighted_mean >> t_dpm23__dpm23_publish_product
-    t_dpm23__dpm23_publish_product >> t_dpm23__upload_greyscale
-    t_cors__submit >> t_dpm13__create_runfiles
-    t_icors__submit >> t_dpm13__create_runfiles
-    t_dpm13__create_runfiles >> t_dpm13__run_qdpm13_1
-    t_dpm13__run_qdpm13_1 >> t_dpm13__run_qdpm13_2
-    t_dpm13__run_qdpm13_2 >> t_dpm13__publish_product
+    t_cors__submit >> t_dpm3__create_runfiles
+    t_icors__submit >> t_dpm3__create_runfiles
+    t_dpm3__create_runfiles >> t_dpm3__run_ccd_1
+    t_dpm3__run_ccd_1 >> t_dpm3__run_ccd_2
+    t_dpm3__run_ccd_2 >> t_dpm3__run_ccd_3
+    t_dpm3__run_ccd_3 >> t_dpm3__run_ccd_4
+    t_dpm3__run_ccd_4 >> t_dpm3__run_ccd_5
+    t_dpm3__run_ccd_5 >> t_dpm3__run_ccd_6
+    t_dpm3__run_ccd_6 >> t_dpm3__run_ccd_7
+    t_dpm3__run_ccd_7 >> t_dpm3__run_ccd_8
+    t_dpm3__create_runfiles >> t_dpm3__run_icor_1
+    t_dpm3__run_icor_1 >> t_dpm3__run_icor_2
+    t_dpm3__run_icor_2 >> t_dpm3__run_icor_3
+    t_dpm3__run_icor_3 >> t_dpm3__run_icor_4
+    t_dpm3__run_icor_4 >> t_dpm3__run_icor_5
+    t_dpm3__run_ccd_8 >> t_dpm3__dpm3_weighted_mean
+    t_dpm3__run_icor_5 >> t_dpm3__dpm3_weighted_mean
+    t_dpm3__dpm3_weighted_mean >> t_dpm3__publish_product
+    t_dpm3__publish_product >> t_dpm3__upload_greyscale
+    t_cors__submit >> t_dpm1__create_runfiles
+    t_icors__submit >> t_dpm1__create_runfiles
+    t_dpm1__create_runfiles >> t_dpm1__run_qdpm1_1
+    t_dpm1__run_qdpm1_1 >> t_dpm1__run_qdpm1_2
+    t_dpm1__run_qdpm1_2 >> t_dpm1__publish_product
     t_amps__submit >> t_fpm2__geocode_fpm2
     t_fpm2__geocode_fpm2 >> t_fpm2__merge_fpm2
     t_fpm2__merge_fpm2 >> t_fpm2__fpm2_publish_product
 
     # Tail: every branch tip converges on the notification chain.
     t_ifgs__submit >> t_send_slack
-    t_dpm23__upload_greyscale >> t_send_slack
-    t_dpm13__publish_product >> t_send_slack
+    t_dpm3__upload_greyscale >> t_send_slack
+    t_dpm1__publish_product >> t_send_slack
     t_fpm2__fpm2_publish_product >> t_send_slack
     t_send_slack >> t_update_job_status
     t_update_job_status >> t_cleanup_variables

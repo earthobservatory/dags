@@ -166,7 +166,7 @@ def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, **kwargs
     gate, exactly as a local ``orch run`` does. With the default
     ``all_success``, Airflow would prune whole branches without ever consulting
     their gates — which would silently drop real work, e.g. the ungated
-    ``dpm23/upload_greyscale`` on a job that simply didn't select dpm23.
+    ``dpm3/upload_greyscale`` on a job that simply didn't select dpm3.
 
     ``orch_name`` is the orch task id and may contain ``/`` (block namespacing);
     ``task_id`` is the Airflow id within its TaskGroup and may not.
@@ -345,7 +345,7 @@ def apply_customizations(dag, tasks: dict, *, dag_id: str) -> None:
     edges, or change trigger rules. ``orch gen-dag`` never writes or deletes it,
     so structural customization survives regeneration.
 
-    ``tasks`` is keyed by ORCH task name (``dpm23/run_ccd_1``), not the
+    ``tasks`` is keyed by ORCH task name (``dpm3/run_ccd_1``), not the
     Airflow id — deliberately, so renaming a pipeline task surfaces as a
     KeyError at DAG-parse time instead of silently dropping a customization.
     """
