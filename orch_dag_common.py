@@ -23,11 +23,15 @@ from __future__ import annotations
 import importlib
 import inspect
 import json
+import re
+import time
 
 import requests
 from airflow.exceptions import AirflowException, AirflowSkipException
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.sensors.python import PythonSensor
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from airflow.providers.ssh.operators.ssh import SSHOperator
 
@@ -45,6 +49,10 @@ DIR_NAME = "{{ var.json[run_id].dir_name }}"
 RUN_PAYLOAD = "{{ var.value[run_id] }}"
 
 INIT_STEP = "00a_prepare_directory"
+
+# Its return value (XCom) is the run payload as triggered — the continuity
+# listener's baseline.
+SET_VARIABLES_TASK_ID = "set_variables"
 
 # `orch run` exits this when every task in the slice was gated out by `when:`.
 # Under Airflow every task is a one-task slice, so it means exactly "this task
@@ -287,7 +295,7 @@ def set_variables_task(dag_id: str):
         return payload
 
     return PythonOperator(
-        task_id="set_variables",
+        task_id=SET_VARIABLES_TASK_ID,
         python_callable=set_variables,
         provide_context=True,
     )
@@ -296,6 +304,8 @@ def set_variables_task(dag_id: str):
 def cleanup_variables_task(**kwargs):
     def cleanup_variables(**context):
         Variable.delete(context["run_id"])
+        # Left by listen_event_dates after a refused edit (post-event continuity).
+        Variable.delete(f"{context['run_id']}__refused")
 
     kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
     return PythonOperator(
@@ -331,6 +341,178 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
         headers={"Content-Type": "application/json"},
         data=json.dumps({"status": status, "dag_run_id": "{{ run_id }}"}),
         extra_options={"check_response": False},
+        **kwargs,
+    )
+
+
+# ── post-event continuity ────────────────────────────────────────────────────
+#
+# A job whose payload sets post_event_continuity=true does not end after its
+# status POST: listen_event_dates watches this run's own run-id Variable (the
+# payload set_variables wrote) for new event_date entries, and trigger_update
+# starts the next run of this DAG on the same dir_name with update_mode=true
+# (orch.core.update processes only the new dates). That run listens on ITS
+# run-id Variable, so one listener is alive per job at a time. Setting
+# post_event_continuity=false in the Variable ends the chain.
+#
+# The baseline — what this run actually processed — is set_variables' return
+# value (XCom), since the Variable itself is what the user edits.
+
+CONTINUITY_KEY = "post_event_continuity"
+LISTEN_TASK_ID = "listen_event_dates"
+_DATE = re.compile(r"^\d{8}$")
+
+
+def _truthy(value) -> bool:
+    return str(value).strip().strip("'\"").lower() == "true"
+
+
+def _refused_variable(run_id: str) -> str:
+    """Remembers the last refused edit, so its Slack alert goes out once."""
+    return f"{run_id}__refused"
+
+
+def event_date_set(value) -> list[str]:
+    """Sorted unique YYYYMMDD entries of an event_date (comma string or JSON list).
+
+    Same rules as orch.core.dpm_dates._date_list, which this module cannot
+    import (it runs on the Airflow host); a test pins the two together.
+    """
+    items = value if isinstance(value, list) else str(value or "").split(",")
+    dates = sorted({str(d).strip() for d in items if str(d).strip()})
+    bad = [d for d in dates if not _DATE.match(d)]
+    if bad:
+        raise ValueError(f"event_date has non-YYYYMMDD entries: {', '.join(bad)}")
+    return dates
+
+
+def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
+    """What the listener does with the edited Variable: ``(decision, reason)``.
+
+    ``stop`` (continuity switched off), ``trigger`` (event_date gained a date
+    this run did not have), ``refused`` (an edit 00a's update mode would reject:
+    a removed date or a changed earliest one) or ``wait``.
+    """
+    if not _truthy(watched.get(CONTINUITY_KEY)):
+        return "stop", f"{CONTINUITY_KEY} is no longer true"
+    try:
+        old = event_date_set(run_payload.get("event_date"))
+        new = event_date_set(watched.get("event_date"))
+    except ValueError as e:
+        return "refused", str(e)
+    removed = sorted(set(old) - set(new))
+    if removed:
+        return "refused", f"event_date dropped {', '.join(removed)}; dates can only be added"
+    added = sorted(set(new) - set(old))
+    if added and old and new[0] != old[0]:
+        return "refused", (f"new earliest event_date {new[0]} (was {old[0]}); it defines "
+                           f"the pre-event reference set, so a full run is needed")
+    if added:
+        return "trigger", f"new post-event date(s) {', '.join(added)}"
+    return "wait", ""
+
+
+def _baseline(context) -> dict:
+    """The payload this run started with, as set_variables returned it."""
+    raw = context["ti"].xcom_pull(task_ids=SET_VARIABLES_TASK_ID)
+    if raw is None:
+        raise AirflowException("no set_variables XCom: cannot tell which event_date "
+                               "this run processed")
+    return json.loads(raw) if isinstance(raw, str) else raw
+
+
+def _notify(context, *, slack_conn_id, slack_channel, message) -> None:
+    try:
+        SlackWebhookOperator(
+            task_id="continuity_alert",
+            slack_webhook_conn_id=slack_conn_id,
+            message=message,
+            username="airflow",
+            channel=slack_channel,
+        ).execute(context=context)
+    except Exception as slack_error:  # noqa: BLE001 - a Slack outage must not stop listening
+        print(f"Failed to send Slack alert: {slack_error}")
+
+
+def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
+                           poke_interval: int, timeout: int, **kwargs):
+    """Wait for new event_date entries in this run's run-id Variable.
+
+    Skipped at once unless the payload this run started with has
+    post_event_continuity=true. Each poke compares the (user-edited) run-id
+    Variable against that baseline; the decision goes to XCom (key
+    ``decision``) for trigger_update. Reschedule mode, so a job listening for
+    weeks holds no worker slot; on ``timeout`` the task soft-fails to SKIPPED
+    and the run ends normally.
+    """
+
+    def listen(**context):
+        run_id = context["run_id"]
+        baseline = _baseline(context)
+        if not _truthy(baseline.get(CONTINUITY_KEY)):
+            raise AirflowSkipException(f"{CONTINUITY_KEY} is not set for this job")
+        watched = json.loads(Variable.get(run_id))
+        decision, reason = continuity_decision(baseline, watched)
+        print(f"Variable {run_id}: {decision} {reason}".rstrip())
+        if decision == "refused":
+            # Once per offending edit, not once per poke.
+            seen = _refused_variable(run_id)
+            stamp = json.dumps(watched.get("event_date"))
+            if Variable.get(seen, default_var=None) != stamp:
+                Variable.set(seen, stamp)
+                _notify(context, slack_conn_id=slack_conn_id, slack_channel=slack_channel,
+                        message=f":warning: {dag_id} {baseline['dir_name']}: update not "
+                                f"triggered — {reason}. Fix the Variable {run_id}.")
+            return False
+        if decision in ("stop", "trigger"):
+            context["ti"].xcom_push(key="decision", value=decision)
+            return True
+        return False
+
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
+    return PythonSensor(
+        task_id=LISTEN_TASK_ID,
+        python_callable=listen,
+        mode="reschedule",
+        poke_interval=poke_interval,
+        timeout=timeout,
+        soft_fail=True,
+        **kwargs,
+    )
+
+
+def continuity_trigger_task(dag_id: str, **kwargs):
+    """Start the update run the listener asked for; SKIPPED otherwise.
+
+    The new run's conf is the edited run-id Variable plus update_mode=true,
+    on the dir_name this run started with. It is not awaited: this run goes
+    on to clean up, and the new one listens on its own run-id Variable
+    (``continuity__<dir_name>__<timestamp>``).
+    """
+
+    def trigger(**context):
+        ti = context["ti"]
+        if ti.xcom_pull(task_ids=LISTEN_TASK_ID, key="decision") != "trigger":
+            raise AirflowSkipException("no new event_date to process")
+        dir_name = _baseline(context)["dir_name"]
+        conf = {**json.loads(Variable.get(context["run_id"])),
+                "dir_name": dir_name, "update_mode": True}
+        run_id = f"continuity__{dir_name}__{time.strftime('%Y%m%dT%H%M%S')}"
+        TriggerDagRunOperator(
+            task_id="trigger_update_run",
+            trigger_dag_id=dag_id,
+            trigger_run_id=run_id,
+            conf=conf,
+            wait_for_completion=False,
+        ).execute(context=context)
+        print(f"Triggered {dag_id} run {run_id} for event_date {conf.get('event_date')}; "
+              f"to add more dates, edit the Variable {run_id}")
+        return run_id
+
+    kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
+    return PythonOperator(
+        task_id="trigger_update",
+        python_callable=trigger,
         **kwargs,
     )
 

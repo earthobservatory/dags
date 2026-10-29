@@ -19,6 +19,8 @@ from airflow.utils.task_group import TaskGroup
 from orch_dag_common import (
     apply_customizations,
     cleanup_variables_task,
+    continuity_listen_task,
+    continuity_trigger_task,
     job_status_task,
     make_failure_callback,
     orch_init_task,
@@ -653,6 +655,18 @@ with DAG(
         endpoint=HTTP_ENDPOINT,
     )
 
+    # post_event_continuity: wait for new event_date entries, then start
+    # an update run on the same dir_name (orch_dag_common).
+    t_listen_event_dates = continuity_listen_task(
+        DAG_ID,
+        slack_conn_id=SLACK_CONN_ID,
+        slack_channel=SLACK_CHANNEL,
+        poke_interval=1800,
+        timeout=5184000,
+    )
+
+    t_trigger_update = continuity_trigger_task(DAG_ID)
+
     t_cleanup_variables = cleanup_variables_task()
 
     # ── task registry — keyed by ORCH name (see apply_customizations) ───────────
@@ -805,7 +819,9 @@ with DAG(
     t_fpm2__fpm2_publish_product >> t_send_slack
     t_fpm3__publish_product >> t_send_slack
     t_send_slack >> t_update_job_status
-    t_update_job_status >> t_cleanup_variables
+    t_update_job_status >> t_listen_event_dates
+    t_listen_event_dates >> t_trigger_update
+    t_trigger_update >> t_cleanup_variables
 
     # Structural per-DAG customization, if the operator wrote a sidecar.
     apply_customizations(dag, TASKS, dag_id=DAG_ID)
