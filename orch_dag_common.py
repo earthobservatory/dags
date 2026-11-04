@@ -349,7 +349,8 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 #
 # A job whose payload sets post_event_continuity=true does not end after its
 # status POST: listen_event_dates watches this run's own run-id Variable (the
-# payload set_variables wrote) for new event_date entries, and trigger_update
+# payload set_variables wrote) for new event_date entries or new
+# selection_download scenes, and trigger_update
 # starts the next run of this DAG on the same dir_name with update_mode=true
 # (orch.core.update processes only the new dates). That run listens on ITS
 # run-id Variable, so one listener is alive per job at a time. Setting
@@ -357,6 +358,10 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 #
 # The baseline — what this run actually processed — is set_variables' return
 # value (XCom), since the Variable itself is what the user edits.
+#
+# A job started before its post-event scene exists (event_date already set)
+# builds the stack, skips the maps (post_event_waiting) and ends green; the
+# edit that brings the scene — a date or a selection_download entry — resumes it.
 
 CONTINUITY_KEY = "post_event_continuity"
 LISTEN_TASK_ID = "listen_event_dates"
@@ -386,12 +391,20 @@ def event_date_set(value) -> list[str]:
     return dates
 
 
+def scene_set(value) -> list[str]:
+    """Sorted unique scene names of a selection_download (JSON list, or a
+    comma/newline-separated string)."""
+    items = value if isinstance(value, list) else re.split(r"[,\n]", str(value or ""))
+    return sorted({str(s).strip() for s in items if str(s).strip()})
+
+
 def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     """What the listener does with the edited Variable: ``(decision, reason)``.
 
-    ``stop`` (continuity switched off), ``trigger`` (event_date gained a date
-    this run did not have), ``refused`` (an edit 00a's update mode would reject:
-    a removed date or a changed earliest one) or ``wait``.
+    ``stop`` (continuity switched off), ``trigger`` (event_date gained a date or
+    selection_download a scene this run did not have), ``refused`` (an edit
+    00a's update mode would reject: a removed date or scene, or a changed
+    earliest date) or ``wait``.
     """
     if not _truthy(watched.get(CONTINUITY_KEY)):
         return "stop", f"{CONTINUITY_KEY} is no longer true"
@@ -407,8 +420,20 @@ def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     if added and old and new[0] != old[0]:
         return "refused", (f"new earliest event_date {new[0]} (was {old[0]}); it defines "
                            f"the pre-event reference set, so a full run is needed")
+    old_scenes = scene_set(run_payload.get("selection_download"))
+    new_scenes = scene_set(watched.get("selection_download"))
+    dropped = sorted(set(old_scenes) - set(new_scenes))
+    if dropped:
+        return "refused", (f"selection_download dropped {', '.join(dropped)}; scenes can "
+                           f"only be added")
+    new_found = sorted(set(new_scenes) - set(old_scenes))
+    reasons = []
     if added:
-        return "trigger", f"new post-event date(s) {', '.join(added)}"
+        reasons.append(f"new post-event date(s) {', '.join(added)}")
+    if new_found:
+        reasons.append(f"new scene(s) {', '.join(new_found)}")
+    if reasons:
+        return "trigger", "; ".join(reasons)
     return "wait", ""
 
 
@@ -436,7 +461,8 @@ def _notify(context, *, slack_conn_id, slack_channel, message) -> None:
 
 def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
                            poke_interval: int, timeout: int, **kwargs):
-    """Wait for new event_date entries in this run's run-id Variable.
+    """Wait for new event_date entries or selection_download scenes in this
+    run's run-id Variable.
 
     Skipped at once unless the payload this run started with has
     post_event_continuity=true. Each poke compares the (user-edited) run-id
@@ -493,7 +519,7 @@ def continuity_trigger_task(dag_id: str, **kwargs):
     def trigger(**context):
         ti = context["ti"]
         if ti.xcom_pull(task_ids=LISTEN_TASK_ID, key="decision") != "trigger":
-            raise AirflowSkipException("no new event_date to process")
+            raise AirflowSkipException("no new event_date or scene to process")
         dir_name = _baseline(context)["dir_name"]
         conf = {**json.loads(Variable.get(context["run_id"])),
                 "dir_name": dir_name, "update_mode": True}

@@ -273,7 +273,7 @@ with DAG(
 
     # ── dpm3  (product branch) ──────────────────────────────────────────────────
     with TaskGroup(group_id='dpm3') as tg_dpm3:
-        # step: 05b_create_dpm3_runfiles   when: modes_in(dpm3)
+        # step: 05b_create_dpm3_runfiles   when: modes_in(dpm3) and $post_event_waiting != true
         t_dpm3__create_runfiles = orch_task(
             'create_runfiles',
             'dpm3/create_runfiles',
@@ -282,7 +282,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_1 = orch_task(
             'run_ccd_1',
             'dpm3/run_ccd_1',
@@ -291,7 +291,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_2 = orch_task(
             'run_ccd_2',
             'dpm3/run_ccd_2',
@@ -300,7 +300,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_3 = orch_task(
             'run_ccd_3',
             'dpm3/run_ccd_3',
@@ -309,7 +309,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_4 = orch_task(
             'run_ccd_4',
             'dpm3/run_ccd_4',
@@ -318,7 +318,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_5 = orch_task(
             'run_ccd_5',
             'dpm3/run_ccd_5',
@@ -327,7 +327,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_6 = orch_task(
             'run_ccd_6',
             'dpm3/run_ccd_6',
@@ -336,7 +336,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_7 = orch_task(
             'run_ccd_7',
             'dpm3/run_ccd_7',
@@ -345,7 +345,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_ccd_1") and $post_event_waiting != true
         t_dpm3__run_ccd_8 = orch_task(
             'run_ccd_8',
             'dpm3/run_ccd_8',
@@ -354,7 +354,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__run_icor_1 = orch_task(
             'run_icor_1',
             'dpm3/run_icor_1',
@@ -363,7 +363,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__run_icor_2 = orch_task(
             'run_icor_2',
             'dpm3/run_icor_2',
@@ -372,7 +372,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__run_icor_3 = orch_task(
             'run_icor_3',
             'dpm3/run_icor_3',
@@ -381,7 +381,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__run_icor_4 = orch_task(
             'run_icor_4',
             'dpm3/run_icor_4',
@@ -390,7 +390,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: exe_run   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__run_icor_5 = orch_task(
             'run_icor_5',
             'dpm3/run_icor_5',
@@ -399,7 +399,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: 08_dpm3_weighted_mean   when: modes_in(dpm3) and file_exist("run_files/run_icor_1")
+        # step: 08_dpm3_weighted_mean   when: modes_in(dpm3) and file_exist("run_files/run_icor_1") and $post_event_waiting != true
         t_dpm3__dpm3_weighted_mean = orch_task(
             'dpm3_weighted_mean',
             'dpm3/dpm3_weighted_mean',
@@ -408,7 +408,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: publish_product   when: modes_in(dpm3)
+        # step: publish_product   when: modes_in(dpm3) and $post_event_waiting != true
         t_dpm3__publish_product = orch_task(
             'publish_product',
             'dpm3/publish_product',
@@ -417,7 +417,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: 93_upload_greyscale   when: modes_in(dpm3)
+        # step: 93_upload_greyscale   when: modes_in(dpm3) and $post_event_waiting != true
         t_dpm3__upload_greyscale = orch_task(
             'upload_greyscale',
             'dpm3/upload_greyscale',
@@ -428,7 +428,7 @@ with DAG(
 
     # ── dpm1  (product branch) ──────────────────────────────────────────────────
     with TaskGroup(group_id='dpm1') as tg_dpm1:
-        # step: 05_create_dpm1_runfiles   when: modes_in(dpm1)
+        # step: 05_create_dpm1_runfiles   when: modes_in(dpm1) and $post_event_waiting != true
         t_dpm1__create_runfiles = orch_task(
             'create_runfiles',
             'dpm1/create_runfiles',
@@ -437,7 +437,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm1) and file_exist("run_files/run_qdpm1_icod")
+        # step: exe_run   when: modes_in(dpm1) and file_exist("run_files/run_qdpm1_icod") and $post_event_waiting != true
         t_dpm1__run_qdpm1_1 = orch_task(
             'run_qdpm1_1',
             'dpm1/run_qdpm1_1',
@@ -446,7 +446,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: modes_in(dpm1) and file_exist("run_files/run_qdpm1_icod")
+        # step: exe_run   when: modes_in(dpm1) and file_exist("run_files/run_qdpm1_icod") and $post_event_waiting != true
         t_dpm1__run_qdpm1_2 = orch_task(
             'run_qdpm1_2',
             'dpm1/run_qdpm1_2',
@@ -455,7 +455,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: publish_product   when: modes_in(dpm1)
+        # step: publish_product   when: modes_in(dpm1) and $post_event_waiting != true
         t_dpm1__publish_product = orch_task(
             'publish_product',
             'dpm1/publish_product',
@@ -466,7 +466,7 @@ with DAG(
 
     # ── fpm2  (product branch) ──────────────────────────────────────────────────
     with TaskGroup(group_id='fpm2') as tg_fpm2:
-        # step: geocode_fpm2   when: modes_in(fpm2)
+        # step: geocode_fpm2   when: modes_in(fpm2) and $post_event_waiting != true
         t_fpm2__geocode_fpm2 = orch_task(
             'geocode_fpm2',
             'fpm2/geocode_fpm2',
@@ -475,7 +475,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: merge_fpm2   when: modes_in(fpm2) and file_exist("run_files/run_params_dask_amps")
+        # step: merge_fpm2   when: modes_in(fpm2) and file_exist("run_files/run_params_dask_amps") and $post_event_waiting != true
         t_fpm2__merge_fpm2 = orch_task(
             'merge_fpm2',
             'fpm2/merge_fpm2',
@@ -484,7 +484,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: publish_product   when: modes_in(fpm2)
+        # step: publish_product   when: modes_in(fpm2) and $post_event_waiting != true
         t_fpm2__fpm2_publish_product = orch_task(
             'fpm2_publish_product',
             'fpm2/fpm2_publish_product',
@@ -504,7 +504,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_fpm3_download")
+        # step: exe_run   when: file_exist("run_files/run_fpm3_download") and $fpm3_waiting != true
         t_fpm3__download = orch_task(
             'download',
             'fpm3/download',
@@ -513,7 +513,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_fpm3_snap")
+        # step: exe_run   when: file_exist("run_files/run_fpm3_snap") and $fpm3_waiting != true
         t_fpm3__snap = orch_task(
             'snap',
             'fpm3/snap',
@@ -522,7 +522,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_fpm3_input")
+        # step: exe_run   when: file_exist("run_files/run_fpm3_input") and $fpm3_waiting != true
         t_fpm3__input = orch_task(
             'input',
             'fpm3/input',
@@ -531,7 +531,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_fpm3_inference")
+        # step: exe_run   when: file_exist("run_files/run_fpm3_inference") and $fpm3_waiting != true
         t_fpm3__inference = orch_task(
             'inference',
             'fpm3/inference',
@@ -540,7 +540,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: exe_run   when: file_exist("run_files/run_fpm3_post")
+        # step: exe_run   when: file_exist("run_files/run_fpm3_post") and $fpm3_waiting != true
         t_fpm3__post = orch_task(
             'post',
             'fpm3/post',
@@ -549,7 +549,7 @@ with DAG(
             work_root=WORK_ROOT,
         )
 
-        # step: publish_product   when: modes_in(fpm3)
+        # step: publish_product   when: modes_in(fpm3) and $fpm3_waiting != true
         t_fpm3__publish_product = orch_task(
             'publish_product',
             'fpm3/publish_product',
