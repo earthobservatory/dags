@@ -360,9 +360,9 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 # status POST: listen_event_dates watches this run's own run-id Variable (the
 # payload set_variables wrote) for new event_date entries or new
 # selection_download scenes, and rerun_update re-runs THIS run in place — same
-# run id, same dir_name, same Variable, now with update_mode=true
-# (orch.core.update processes only the new dates). Setting
-# post_event_continuity=false in the Variable ends the run.
+# run id, same dir_name, same Variable. 00a finds the job already built and
+# runs it as a later pass (orch.core.update processes only the new dates).
+# Setting post_event_continuity=false in the Variable ends the run.
 #
 # The baseline — what this run actually processed — is set_variables' return
 # value (XCom), since the Variable itself is what the user edits.
@@ -412,7 +412,7 @@ def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
 
     ``stop`` (continuity switched off), ``trigger`` (event_date gained a date or
     selection_download a scene this run did not have), ``refused`` (an edit
-    00a's update mode would reject: a removed date or scene, or a changed
+    a later pass's 00a would reject: a removed date or scene, or a changed
     earliest date) or ``wait``.
     """
     if not _truthy(watched.get(CONTINUITY_KEY)):
@@ -539,9 +539,9 @@ def continuity_rerun_task(dag_id: str, *, slack_conn_id, slack_channel, timeout:
                           poke_interval: int = 60, **kwargs):
     """Re-run this same run for the update the listener asked for.
 
-    On ``trigger``: set update_mode=true in the run-id Variable (the user's
-    edits stay; dir_name is pinned to the one this run started with), reset
-    every other task of the run, and stay UP_FOR_RESCHEDULE rather than
+    On ``trigger``: reset every other task of the run (00a then sees the job's
+    baseline and runs the next pass; a dir_name edit is pinned back to the one
+    this run started with), and stay UP_FOR_RESCHEDULE rather than
     succeed. Its upstream is now unstarted, so it cannot poke again until the
     next pass's listener finishes; and cleanup_variables, downstream of a task
     that never finished, keeps the Variable. On ``stop`` or no decision (the
@@ -560,13 +560,14 @@ def continuity_rerun_task(dag_id: str, *, slack_conn_id, slack_channel, timeout:
             return True
         run_id = context["run_id"]
         baseline = _baseline(context)
-        payload = {**json.loads(Variable.get(run_id)),
-                   "dir_name": baseline["dir_name"], "update_mode": True}
-        Variable.set(run_id, json.dumps(payload))
+        payload = json.loads(Variable.get(run_id))
+        if payload.get("dir_name") != baseline["dir_name"]:
+            payload["dir_name"] = baseline["dir_name"]
+            Variable.set(run_id, json.dumps(payload))
         _, reason = continuity_decision(baseline, payload)
         reset = _reset_other_tasks(context)
-        message = (f":repeat: {dag_id} {baseline['dir_name']}: re-running {run_id} in update "
-                   f"mode for {reason} ({len(reset)} tasks reset)")
+        message = (f":repeat: {dag_id} {baseline['dir_name']}: re-running {run_id} as the "
+                   f"job's next pass for {reason} ({len(reset)} tasks reset)")
         print(message)
         _notify(context, slack_conn_id=slack_conn_id, slack_channel=slack_channel,
                 message=message)

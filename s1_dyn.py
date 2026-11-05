@@ -571,7 +571,7 @@ with DAG(
     )
 
     # post_event_continuity: wait for new event_date entries or scenes, then
-    # re-run this same run in update mode (orch_dag_common).
+    # re-run this same run as the job's next pass (orch_dag_common).
     t_listen_event_dates = continuity_listen_task(
         DAG_ID,
         slack_conn_id=SLACK_CONN_ID,
