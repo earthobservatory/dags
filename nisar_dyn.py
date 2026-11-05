@@ -20,7 +20,7 @@ from orch_dag_common import (
     apply_customizations,
     cleanup_variables_task,
     continuity_listen_task,
-    continuity_trigger_task,
+    continuity_rerun_task,
     job_status_task,
     make_failure_callback,
     orch_init_task,
@@ -673,8 +673,8 @@ with DAG(
         endpoint=HTTP_ENDPOINT,
     )
 
-    # post_event_continuity: wait for new event_date entries, then start
-    # an update run on the same dir_name (orch_dag_common).
+    # post_event_continuity: wait for new event_date entries or scenes, then
+    # re-run this same run in update mode (orch_dag_common).
     t_listen_event_dates = continuity_listen_task(
         DAG_ID,
         slack_conn_id=SLACK_CONN_ID,
@@ -683,7 +683,12 @@ with DAG(
         timeout=5184000,
     )
 
-    t_trigger_update = continuity_trigger_task(DAG_ID)
+    t_rerun_update = continuity_rerun_task(
+        DAG_ID,
+        slack_conn_id=SLACK_CONN_ID,
+        slack_channel=SLACK_CHANNEL,
+        timeout=31536000,
+    )
 
     t_cleanup_variables = cleanup_variables_task()
 
@@ -842,8 +847,8 @@ with DAG(
     t_fpm3__publish_product >> t_send_slack
     t_send_slack >> t_update_job_status
     t_update_job_status >> t_listen_event_dates
-    t_listen_event_dates >> t_trigger_update
-    t_trigger_update >> t_cleanup_variables
+    t_listen_event_dates >> t_rerun_update
+    t_rerun_update >> t_cleanup_variables
 
     # Structural per-DAG customization, if the operator wrote a sidecar.
     apply_customizations(dag, TASKS, dag_id=DAG_ID)

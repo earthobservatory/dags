@@ -24,13 +24,11 @@ import importlib
 import inspect
 import json
 import re
-import time
 
 import requests
 from airflow.exceptions import AirflowException, AirflowSkipException
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.sensors.python import PythonSensor
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from airflow.providers.ssh.operators.ssh import SSHOperator
@@ -280,6 +278,10 @@ def make_failure_callback(*, slack_conn_id, slack_channel, http_conn_id, http_en
 def set_variables_task(dag_id: str):
     """Copy this run's payload into a Variable keyed by ``run_id``.
 
+    When that Variable already exists it is returned unchanged: post-event
+    continuity re-runs this same run (see ``continuity_rerun_task``) with the
+    user-edited Variable as its payload.
+
     Prefers ``dag_run.conf`` (what a trigger passes directly) and falls back to
     the legacy ``{DAG_ID}_variables`` Variable. The fallback races when two runs
     of the same DAG are triggered close together — which the old
@@ -288,10 +290,17 @@ def set_variables_task(dag_id: str):
     """
 
     def set_variables(**kwargs):
+        run_id = kwargs["run_id"]
+        # A continuity re-run of this same run (rerun_update), or a retry: the
+        # Variable is the payload now — it holds the user's edits, which the
+        # original trigger conf would overwrite.
+        existing = Variable.get(run_id, default_var=None)
+        if existing is not None:
+            return existing
         dag_run = kwargs.get("dag_run")
         conf = (dag_run.conf or {}) if dag_run else {}
         payload = json.dumps(conf) if conf else Variable.get(f"{dag_id}_variables")
-        Variable.set(kwargs["run_id"], payload)
+        Variable.set(run_id, payload)
         return payload
 
     return PythonOperator(
@@ -350,11 +359,10 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 # A job whose payload sets post_event_continuity=true does not end after its
 # status POST: listen_event_dates watches this run's own run-id Variable (the
 # payload set_variables wrote) for new event_date entries or new
-# selection_download scenes, and trigger_update
-# starts the next run of this DAG on the same dir_name with update_mode=true
-# (orch.core.update processes only the new dates). That run listens on ITS
-# run-id Variable, so one listener is alive per job at a time. Setting
-# post_event_continuity=false in the Variable ends the chain.
+# selection_download scenes, and rerun_update re-runs THIS run in place — same
+# run id, same dir_name, same Variable, now with update_mode=true
+# (orch.core.update processes only the new dates). Setting
+# post_event_continuity=false in the Variable ends the run.
 #
 # The baseline — what this run actually processed — is set_variables' return
 # value (XCom), since the Variable itself is what the user edits.
@@ -365,6 +373,7 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 
 CONTINUITY_KEY = "post_event_continuity"
 LISTEN_TASK_ID = "listen_event_dates"
+RERUN_TASK_ID = "rerun_update"
 _DATE = re.compile(r"^\d{8}$")
 
 
@@ -467,7 +476,7 @@ def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
     Skipped at once unless the payload this run started with has
     post_event_continuity=true. Each poke compares the (user-edited) run-id
     Variable against that baseline; the decision goes to XCom (key
-    ``decision``) for trigger_update. Reschedule mode, so a job listening for
+    ``decision``) for rerun_update. Reschedule mode, so a job listening for
     weeks holds no worker slot; on ``timeout`` the task soft-fails to SKIPPED
     and the run ends normally.
     """
@@ -507,38 +516,70 @@ def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
     )
 
 
-def continuity_trigger_task(dag_id: str, **kwargs):
-    """Start the update run the listener asked for; SKIPPED otherwise.
+def _reset_other_tasks(context) -> list[str]:
+    """Reset every task instance of this run except the calling one.
 
-    The new run's conf is the edited run-id Variable plus update_mode=true,
-    on the dir_name this run started with. It is not awaited: this run goes
-    on to clean up, and the new one listens on its own run-id Variable
-    (``continuity__<dir_name>__<timestamp>``).
+    They are all finished when rerun_update gets here (it is the next-to-last
+    task and its upstream chain is complete), so nothing running is touched.
+    ``dag_run_state=False`` keeps the DagRun RUNNING rather than re-queuing it
+    (Airflow >= 2.7). Returns the reset task ids.
+    """
+    from airflow.models.taskinstance import clear_task_instances
+    from airflow.utils.session import create_session
+
+    me = context["ti"].task_id
+    with create_session() as session:
+        tis = [ti for ti in context["dag_run"].get_task_instances(session=session)
+               if ti.task_id != me]
+        clear_task_instances(tis, session, dag=context["dag"], dag_run_state=False)
+        return [ti.task_id for ti in tis]
+
+
+def continuity_rerun_task(dag_id: str, *, slack_conn_id, slack_channel, timeout: int,
+                          poke_interval: int = 60, **kwargs):
+    """Re-run this same run for the update the listener asked for.
+
+    On ``trigger``: set update_mode=true in the run-id Variable (the user's
+    edits stay; dir_name is pinned to the one this run started with), reset
+    every other task of the run, and stay UP_FOR_RESCHEDULE rather than
+    succeed. Its upstream is now unstarted, so it cannot poke again until the
+    next pass's listener finishes; and cleanup_variables, downstream of a task
+    that never finished, keeps the Variable. On ``stop`` or no decision (the
+    listener skipped or timed out) it succeeds and cleanup ends the run.
+
+    Reschedule mode, so the wait holds no worker slot. Its ``timeout`` counts
+    from its first poke across every pass — the job's whole continuity
+    lifetime; on expiry it soft-fails to SKIPPED and cleanup runs.
     """
 
-    def trigger(**context):
+    def rerun(**context):
         ti = context["ti"]
-        if ti.xcom_pull(task_ids=LISTEN_TASK_ID, key="decision") != "trigger":
-            raise AirflowSkipException("no new event_date or scene to process")
-        dir_name = _baseline(context)["dir_name"]
-        conf = {**json.loads(Variable.get(context["run_id"])),
-                "dir_name": dir_name, "update_mode": True}
-        run_id = f"continuity__{dir_name}__{time.strftime('%Y%m%dT%H%M%S')}"
-        TriggerDagRunOperator(
-            task_id="trigger_update_run",
-            trigger_dag_id=dag_id,
-            trigger_run_id=run_id,
-            conf=conf,
-            wait_for_completion=False,
-        ).execute(context=context)
-        print(f"Triggered {dag_id} run {run_id} for event_date {conf.get('event_date')}; "
-              f"to add more dates, edit the Variable {run_id}")
-        return run_id
+        decision = ti.xcom_pull(task_ids=LISTEN_TASK_ID, key="decision")
+        if decision != "trigger":
+            print(f"no update requested (listener decision: {decision}); ending the run")
+            return True
+        run_id = context["run_id"]
+        baseline = _baseline(context)
+        payload = {**json.loads(Variable.get(run_id)),
+                   "dir_name": baseline["dir_name"], "update_mode": True}
+        Variable.set(run_id, json.dumps(payload))
+        _, reason = continuity_decision(baseline, payload)
+        reset = _reset_other_tasks(context)
+        message = (f":repeat: {dag_id} {baseline['dir_name']}: re-running {run_id} in update "
+                   f"mode for {reason} ({len(reset)} tasks reset)")
+        print(message)
+        _notify(context, slack_conn_id=slack_conn_id, slack_channel=slack_channel,
+                message=message)
+        return False
 
     kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
-    return PythonOperator(
-        task_id="trigger_update",
-        python_callable=trigger,
+    return PythonSensor(
+        task_id=RERUN_TASK_ID,
+        python_callable=rerun,
+        mode="reschedule",
+        poke_interval=poke_interval,
+        timeout=timeout,
+        soft_fail=True,
         **kwargs,
     )
 
