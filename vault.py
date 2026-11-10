@@ -2,7 +2,7 @@
 vault: SARimpact's window on the cluster's run folders.
 
 SARimpact (Pipeline page, Folders tab) triggers this DAG; nothing schedules
-it. Two actions, picked by dag_run.conf:
+it. Three actions, picked by dag_run.conf:
 
   {"action": "report"}
       Runs `vault --report` on aws-hpc-c3: every folder in urgent_response and
@@ -14,11 +14,16 @@ it. Two actions, picked by dag_run.conf:
       (flag, unflag, clear, keep, check) to ~/.vault/labels.json, where the
       `vault` picker shows them as a column.
 
-Neither action flags, moves or deletes a folder: that stays with a person in
+  {"action": "apply", "apply_b64": "<base64 JSON>"}
+      Runs `vault --apply`: sets or removes deep_storage_flag on the folders
+      staff chose Flag or Unflag for on the Folders tab, as vault's own flag
+      and remove-flag options do, and prints each folder's outcome.
+
+None of them moves or deletes a folder: moving stays with a person in
 `vault`, and deleting with wildfly-utils' deep_archive.sh.
 
 The command is built in a Python task from validated conf (the action from a
-fixed list, the labels as plain base64), so nothing from conf reaches the
+fixed list, the labels and folder lists as plain base64), so nothing from conf reaches the
 shell unquoted.
 """
 
@@ -46,7 +51,12 @@ def build_command(**context):
         if not BASE64.match(labels) or len(labels) > MAX_LABELS_B64:
             raise AirflowFailException("labels_b64 must be plain base64 under 2 MB")
         return f"bash {shlex.quote(VAULT)} --set-labels {shlex.quote(labels)}"
-    raise AirflowFailException(f"unknown action {action!r}; expected report or labels")
+    if action == "apply":
+        request = conf.get("apply_b64") or ""
+        if not BASE64.match(request) or len(request) > MAX_LABELS_B64:
+            raise AirflowFailException("apply_b64 must be plain base64 under 2 MB")
+        return f"bash {shlex.quote(VAULT)} --apply {shlex.quote(request)}"
+    raise AirflowFailException(f"unknown action {action!r}; expected report, labels or apply")
 
 
 with DAG(
