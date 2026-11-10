@@ -407,13 +407,45 @@ def scene_set(value) -> list[str]:
     return sorted({str(s).strip() for s in items if str(s).strip()})
 
 
+def earliest_change_refusal(job: dict, old: str, new: str, new_modes=None) -> str:
+    """Why the earliest event_date may not move from ``old`` to ``new`` ('' = it may).
+
+    With an empty ``pre_event_dates`` the reference set is every date before the
+    earliest event_date, so moving it changes the references: refused. With an
+    explicit list the references do not depend on it, so the move is allowed when
+    the new earliest is after the last reference and no dpm1 map (one map, built
+    on the earliest date, not incrementally) would silently change event.
+    ``job`` is the job's payload (``pre_event_dates`` is frozen); ``new_modes`` is
+    the edited ``modes``, checked for dpm1 too.
+    Same rule as orch.core.update.check_frozen; a test pins the two together.
+    """
+    head = f"new earliest event_date {new} (was {old})"
+    try:
+        pre = event_date_set(job.get("pre_event_dates"))
+    except ValueError as e:
+        return f"{head}; pre_event_dates: {e}"
+    if not pre:
+        return (f"{head}; with no pre_event_dates it defines the pre-event reference "
+                f"set, so a full run is needed")
+    if new <= pre[-1]:
+        return (f"{head} is not after the last pre_event_date {pre[-1]}")
+    modes = set()
+    for raw in (job.get("modes"), new_modes):
+        raw = raw or ""
+        modes |= {str(m).strip().lower()
+                  for m in (raw if isinstance(raw, list) else str(raw).split(","))}
+    if "dpm1" in modes:
+        return f"{head}; dpm1's single map is built on the earliest date, so a full run is needed"
+    return ""
+
+
 def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     """What the listener does with the edited Variable: ``(decision, reason)``.
 
     ``stop`` (continuity switched off), ``trigger`` (event_date gained a date or
     selection_download a scene this run did not have), ``refused`` (an edit
     a later pass's 00a would reject: a removed date or scene, or a changed
-    earliest date) or ``wait``.
+    earliest date that :func:`earliest_change_refusal` refuses) or ``wait``.
     """
     if not _truthy(watched.get(CONTINUITY_KEY)):
         return "stop", f"{CONTINUITY_KEY} is no longer true"
@@ -427,8 +459,9 @@ def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
         return "refused", f"event_date dropped {', '.join(removed)}; dates can only be added"
     added = sorted(set(new) - set(old))
     if added and old and new[0] != old[0]:
-        return "refused", (f"new earliest event_date {new[0]} (was {old[0]}); it defines "
-                           f"the pre-event reference set, so a full run is needed")
+        why = earliest_change_refusal(run_payload, old[0], new[0], watched.get("modes"))
+        if why:
+            return "refused", why
     old_scenes = scene_set(run_payload.get("selection_download"))
     new_scenes = scene_set(watched.get("selection_download"))
     dropped = sorted(set(old_scenes) - set(new_scenes))
