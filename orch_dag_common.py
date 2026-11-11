@@ -48,6 +48,9 @@ RUN_PAYLOAD = "{{ var.value[run_id] }}"
 
 INIT_STEP = "00a_prepare_directory"
 
+# What a live_payload task finds the run payload in (orch.core.fpm2.PAYLOAD_ENV).
+PAYLOAD_ENV = "ORCH_RUN_PAYLOAD"
+
 # Its return value (XCom) is the run payload as triggered — the continuity
 # listener's baseline.
 SET_VARIABLES_TASK_ID = "set_variables"
@@ -158,7 +161,7 @@ class OrchSSHOperator(SSHOperator):
             raise
 
 
-def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, **kwargs):
+def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, live_payload=False, **kwargs):
     """One Airflow task = one orch pipeline task.
 
     Runs ``orch run <name> <name>`` rather than ``orch run-step``: the ``run``
@@ -176,6 +179,15 @@ def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, **kwargs
 
     ``orch_name`` is the orch task id and may contain ``/`` (block namespacing);
     ``task_id`` is the Airflow id within its TaskGroup and may not.
+
+    ``live_payload=True`` (dags.yaml ``task_overrides``) also exports the run's
+    current run-id Variable as ``ORCH_RUN_PAYLOAD``, through the same
+    ``export ... | tr -d '\\n'`` hop the init task uses. config.txt is written
+    once, by 00a, so this is how a task re-run from the UI ("Re-run from here")
+    sees settings edited in the Variable since: the step merges the keys it
+    owns into config.txt before running (fpm2/zscore and fpm2/gsba; see
+    orch/core/fpm2.py). Only for tasks that read it: a single quote in the
+    payload breaks the hop, which SARimpact refuses for that reason.
     """
     kwargs.setdefault("cmd_timeout", None)
     kwargs.setdefault("conn_timeout", None)
@@ -187,14 +199,13 @@ def orch_task(task_id, orch_name, *, ssh_conn_id, setup_cmd, work_root, **kwargs
             kwargs.setdefault("skip_on_exit_code", SKIP_EXIT_CODE)
     except (TypeError, ValueError):
         pass
+    script = _skip_wrapper(f"orch run '{orch_name}' '{orch_name}' --job-dir .")
+    if live_payload:
+        script = f"export {PAYLOAD_ENV}=$(echo '{RUN_PAYLOAD}' | tr -d '\\n') && {script}"
     return OrchSSHOperator(
         task_id=task_id,
         ssh_conn_id=ssh_conn_id,
-        command=ssh_cmd(
-            _skip_wrapper(f"orch run '{orch_name}' '{orch_name}' --job-dir ."),
-            setup_cmd=setup_cmd,
-            work_root=work_root,
-        ),
+        command=ssh_cmd(script, setup_cmd=setup_cmd, work_root=work_root),
         **kwargs,
     )
 
