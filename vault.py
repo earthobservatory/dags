@@ -10,17 +10,17 @@ it. Three actions, picked by dag_run.conf:
       task's output is its XCom, which SARimpact reads back over the REST API.
 
   {"action": "labels", "labels_b64": "<base64 JSON>"}
-      Runs `vault --set-labels`, which saves SARimpact's label for each folder
-      (flag, unflag, clear, keep, check) to ~/.vault/labels.json, where the
-      `vault` picker shows them as a column.
+      Runs `vault --set-labels`, which saves the action SARimpact shows for
+      each folder (flag, unflag, move, delete, keep) to ~/.vault/labels.json,
+      where the `vault` picker shows them as a column.
 
   {"action": "apply", "apply_b64": "<base64 JSON>"}
-      Runs `vault --apply`: sets or removes deep_storage_flag on the folders
-      staff chose Flag or Unflag for on the Folders tab, as vault's own flag
-      and remove-flag options do, and prints each folder's outcome.
-
-None of them moves or deletes a folder: moving stays with a person in
-`vault`, and deleting with wildfly-utils' deep_archive.sh.
+      Runs `vault --apply`, which carries out what staff sent from the
+      Folders tab: set or remove deep_storage_flag (archive to the on-prem
+      server), move a folder to response_archive through vault's SLURM
+      worker, or delete it (SARimpact asks staff to confirm a delete first,
+      and vault refuses one whose folder changed since SARimpact last read
+      it). It prints each folder's outcome.
 
 The command is built in a Python task from validated conf (the action from a
 fixed list, the labels and folder lists as plain base64), so nothing from conf reaches the
