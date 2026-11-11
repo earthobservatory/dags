@@ -245,7 +245,8 @@ def _describe_run(session, dag_id, run_id, stamp):
         entry = (
             session.query(Log.owner)
             .filter(Log.dag_id == dag_id, Log.dttm >= logical - window, Log.dttm <= logical + window)
-            .filter(Log.event.ilike("%trigger%") | Log.event.ilike("%post_dag_run%"))
+            # "trigger" (UI), "cli_dag_trigger", "dag_run.create" (REST API), as Airflow 2.7.1 logs them.
+            .filter(Log.event.ilike("%trigger%") | (Log.event == "dag_run.create"))
             .order_by(Log.dttm)
             .first()
         )
