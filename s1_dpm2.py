@@ -108,6 +108,9 @@ def set_and_store_variables(**kwargs):
     run_id = kwargs['run_id']
     variables = Variable.get(f"{name}_variables")
     Variable.set(run_id, variables)
+    # Kept for SARimpact's usage tally (node_usage.read_tasks): the Variable is
+    # deleted when the run ends, the XCom stays.
+    kwargs['ti'].xcom_push(key='run_payload', value=variables)
     prevent_selection_files = Variable.get(run_id, deserialize_json=True)['selection_download']
     return prevent_selection_files
 

@@ -38,6 +38,21 @@ too, or their nodes would be charged to SARimpact's jobs.
 
 Each is [dag id, run id, task id, map index, started, ended or null, state];
 Airflow keeps one row per task, so a retried task shows its last try only.
+
+It also returns what each of those runs was, so SARimpact can name the runs
+it did not start and count them toward an organization:
+
+  {"runs": [{"dag_id": "S1_FPM3", "run_id": "manual__...", "state": "success",
+             "logical_date": 1760610000.0, "started_by": "ricky",
+             "config": {"organization": "NSAS", "event_name": "...", "dir_name": "..."}}]}
+
+`config` holds only CONFIG_KEYS, read from the run's payload: the seed task's
+`run_payload` XCom (kept after cleanup_variables deletes the Variable), else
+the orch seed task's return value, else the run's Variable, else its trigger
+conf. Put "organization" (an organization's short name, name or id in
+SARimpact) in a run's variables and its cost counts toward that organization.
+`started_by` is the user Airflow's audit log has triggering the DAG then
+(best effort; empty when none matches).
 """
 
 import base64
@@ -147,6 +162,11 @@ PARSER_B64 = base64.b64encode(PARSER.encode()).decode()
 CLUSTER_OPERATORS = ("SSHOperator", "OrchSSHOperator")
 HEAD_NODE_DAGS = ("node_usage", "vault")
 
+# The run payload: where the seed tasks keep it, and the keys SARimpact reads.
+SEED_TASKS = ("set_variables", "set_and_store_variables")
+CONFIG_KEYS = ("organization", "event_name", "dir_name")
+TRIGGER_WINDOW = 120  # seconds either side of a run's logical date
+
 
 def _since(context) -> int:
     conf = (context["dag_run"].conf or {}) if context.get("dag_run") else {}
@@ -182,7 +202,62 @@ def read_tasks(**context):
         )
         tasks = [[r.dag_id, r.run_id, r.task_id, r.map_index, stamp(r.start_date), stamp(r.end_date), r.state]
                  for r in rows]
-    return json.dumps({"tasks": tasks}, separators=(",", ":"))
+        runs = [_describe_run(session, dag_id, run_id, stamp) for dag_id, run_id in sorted({(r[0], r[1]) for r in tasks})]
+    return json.dumps({"tasks": tasks, "runs": runs}, separators=(",", ":"))
+
+
+def _as_config(value):
+    """A payload (dict, or a JSON string of one) cut down to CONFIG_KEYS; None if it is not one."""
+    if isinstance(value, (str, bytes)):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None
+    if not isinstance(value, dict):
+        return None
+    return {key: value[key] for key in CONFIG_KEYS if value.get(key) not in (None, "")}
+
+
+def _describe_run(session, dag_id, run_id, stamp):
+    from datetime import timedelta
+
+    from airflow.models import DagRun, Log, Variable, XCom
+
+    dag_run = session.query(DagRun).filter(DagRun.dag_id == dag_id, DagRun.run_id == run_id).one_or_none()
+    config = None
+    for key in ("run_payload", "return_value"):
+        for task_id in SEED_TASKS:
+            if config is None:
+                try:
+                    config = _as_config(XCom.get_one(
+                        key=key, dag_id=dag_id, task_id=task_id, run_id=run_id, session=session))
+                except Exception:  # noqa: BLE001 - an unreadable XCom is no payload
+                    config = None
+    if config is None:
+        config = _as_config(Variable.get(run_id, default_var=None))
+    if config is None and dag_run is not None:
+        config = _as_config(dag_run.conf)
+
+    started_by = ""
+    logical = dag_run.execution_date if dag_run is not None else None
+    if logical is not None:
+        window = timedelta(seconds=TRIGGER_WINDOW)
+        entry = (
+            session.query(Log.owner)
+            .filter(Log.dag_id == dag_id, Log.dttm >= logical - window, Log.dttm <= logical + window)
+            .filter(Log.event.ilike("%trigger%") | Log.event.ilike("%post_dag_run%"))
+            .order_by(Log.dttm)
+            .first()
+        )
+        started_by = (entry.owner or "") if entry else ""
+    return {
+        "dag_id": dag_id,
+        "run_id": run_id,
+        "state": dag_run.state if dag_run is not None else "",
+        "logical_date": stamp(logical),
+        "started_by": started_by,
+        "config": config or {},
+    }
 
 
 with DAG(
