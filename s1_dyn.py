@@ -605,7 +605,7 @@ with DAG(
         DAG_ID,
         slack_conn_id=SLACK_CONN_ID,
         slack_channel=SLACK_CHANNEL,
-        poke_interval=1800,
+        poke_interval=300,
         timeout=5184000,
     )
 
