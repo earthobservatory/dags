@@ -24,9 +24,13 @@ import importlib
 import inspect
 import json
 import re
+import time
+from collections import Counter
+
+from datetime import datetime, timedelta, timezone
 
 import requests
-from airflow.exceptions import AirflowException, AirflowSkipException
+from airflow.exceptions import AirflowException, AirflowRescheduleException, AirflowSkipException
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.sensors.python import PythonSensor
@@ -63,6 +67,16 @@ SKIP_EXIT_CODE = 99
 # Echoed to stderr by the remote wrapper when orch reports the skip. See
 # _skip_wrapper for why the literal must never appear in the command itself.
 SKIP_MARKER = "ORCH_SKIPPED_99"
+
+# A step exits this to say "not yet, call me again" (ALOS stack_init/02_fetch_data
+# while a JAXA delivery is pending); `orch run` passes it on. Kept in sync with
+# orch.core.runner.EXIT_WAITING. OrchSSHOperator turns it into
+# AirflowRescheduleException, so the task waits up_for_reschedule without holding
+# a worker slot, like the continuity sensors. The deadline lives in the step
+# (job dir), not here, so a manual `orch run` behaves the same.
+WAITING_EXIT_CODE = 98
+WAITING_MARKER = "ORCH_WAITING_98"
+DEFAULT_RESCHEDULE_SECONDS = 1800
 
 # Every generated task and the whole tail run on this rule: all upstreams
 # terminal, none FAILED or UPSTREAM_FAILED — a SKIPPED upstream counts as OK.
@@ -115,6 +129,8 @@ def _skip_wrapper(script: str) -> str:
         f"{script}; rc=$?; "
         f'if [ "$rc" -eq {SKIP_EXIT_CODE} ]; then '
         f"printf '%s_%s_%s\\n' ORCH SKIPPED {SKIP_EXIT_CODE} >&2; fi; "
+        f'if [ "$rc" -eq {WAITING_EXIT_CODE} ]; then '
+        f"printf '%s_%s_%s\\n' ORCH WAITING {WAITING_EXIT_CODE} >&2; fi; "
         'exit "$rc"'
     )
 
@@ -133,6 +149,19 @@ def is_skip_error(message: str) -> bool:
     return any(p in message for p in _SKIP_PATTERNS)
 
 
+_WAITING_PATTERNS = (WAITING_MARKER, f"exit status = {WAITING_EXIT_CODE}")
+
+
+def is_waiting_error(message: str) -> bool:
+    """True when an SSHOperator failure is really an orch "waiting, call again" signal.
+
+    Same two provider generations as :func:`is_skip_error`, and the same guard:
+    the marker is assembled at runtime by ``_skip_wrapper``, so a genuine failure
+    that echoes the command back can never match.
+    """
+    return any(p in message for p in _WAITING_PATTERNS)
+
+
 class OrchSSHOperator(SSHOperator):
     """SSHOperator that renders a `when:`-gated orch task as SKIPPED, not failed.
 
@@ -146,17 +175,29 @@ class OrchSSHOperator(SSHOperator):
     guarded by ``_skip_wrapper``'s runtime-assembled marker.
     """
 
+    def __init__(self, *args, reschedule_seconds: int = DEFAULT_RESCHEDULE_SECONDS, **kwargs):
+        super().__init__(*args, **kwargs)
+        # How long a task whose step exited WAITING_EXIT_CODE waits before
+        # Airflow runs it again (dags.yaml task_overrides: reschedule_seconds).
+        self.reschedule_seconds = int(reschedule_seconds)
+
     def execute(self, context):
         try:
             return super().execute(context)
-        except AirflowSkipException:
+        except (AirflowSkipException, AirflowRescheduleException):
             # Provider-native skip_on_exit_code already decided. Must be caught
-            # first: AirflowSkipException subclasses AirflowException.
+            # first: both subclass AirflowException.
             raise
         except AirflowException as e:
             if is_skip_error(str(e)):
                 raise AirflowSkipException(
                     f"orch: {self.task_id} gated out by its `when:` condition"
+                ) from None
+            if is_waiting_error(str(e)):
+                # up_for_reschedule: no worker slot held while waiting, and the
+                # step's own deadline turns a wait that never ends into a failure.
+                raise AirflowRescheduleException(
+                    datetime.now(timezone.utc) + timedelta(seconds=self.reschedule_seconds)
                 ) from None
             raise
 
@@ -324,8 +365,9 @@ def set_variables_task(dag_id: str):
 def cleanup_variables_task(**kwargs):
     def cleanup_variables(**context):
         Variable.delete(context["run_id"])
-        # Left by listen_event_dates after a refused edit (post-event continuity).
+        # Left by listen_event_dates after a refused or held edit (post-event continuity).
         Variable.delete(f"{context['run_id']}__refused")
+        Variable.delete(f"{context['run_id']}__hold")
 
     kwargs.setdefault("trigger_rule", DEFAULT_TRIGGER_RULE)
     return PythonOperator(
@@ -369,23 +411,30 @@ def job_status_task(*, http_conn_id, endpoint, status="success", **kwargs):
 #
 # A job whose payload sets post_event_continuity=true does not end after its
 # status POST: listen_event_dates watches this run's own run-id Variable (the
-# payload set_variables wrote) for new event_date entries or new
-# selection_download scenes, and rerun_update re-runs THIS run in place — same
-# run id, same dir_name, same Variable. 00a finds the job already built and
-# runs it as a later pass (orch.core.update processes only the new dates).
-# Setting post_event_continuity=false in the Variable ends the run.
+# payload set_variables wrote) for new selection_download scenes, and
+# rerun_update re-runs THIS run in place — same run id, same dir_name, same
+# Variable. 00a finds the job already built and runs it as a later pass
+# (orch.core.update processes only the new dates). Setting
+# post_event_continuity=false in the Variable ends the run.
+#
+# selection_download is the only trigger: every scene on or after the earliest
+# event_date is a post-event map, so appending a date's scenes is how a waiting
+# job gets its post-event scene and how a running one gets another map. An
+# event_date edit alone does not trigger (it is merged by the next pass). All
+# frames of a date must arrive in one edit: a new date with fewer scenes than
+# the pre-event dates have is held (not triggered) until it is complete or the
+# hold expires.
 #
 # The baseline — what this run actually processed — is set_variables' return
 # value (XCom), since the Variable itself is what the user edits.
-#
-# A job started before its post-event scene exists (event_date already set)
-# builds the stack, skips the maps (post_event_waiting) and ends green; the
-# edit that brings the scene — a date or a selection_download entry — resumes it.
 
 CONTINUITY_KEY = "post_event_continuity"
 LISTEN_TASK_ID = "listen_event_dates"
 RERUN_TASK_ID = "rerun_update"
 _DATE = re.compile(r"^\d{8}$")
+# The acquisition date in an S1 SLC / NISAR RSLC/GSLC name: the first
+# _YYYYMMDDTHHMMSS. A test pins it to the satellite readers' scene_date.
+_SCENE_DATE = re.compile(r"_(\d{8})T\d{6}")
 
 
 def _truthy(value) -> bool:
@@ -395,6 +444,11 @@ def _truthy(value) -> bool:
 def _refused_variable(run_id: str) -> str:
     """Remembers the last refused edit, so its Slack alert goes out once."""
     return f"{run_id}__refused"
+
+
+def _hold_variable(run_id: str) -> str:
+    """Remembers a held (incomplete) selection: since when, and what was noted."""
+    return f"{run_id}__hold"
 
 
 def event_date_set(value) -> list[str]:
@@ -416,6 +470,21 @@ def scene_set(value) -> list[str]:
     comma/newline-separated string)."""
     items = value if isinstance(value, list) else re.split(r"[,\n]", str(value or ""))
     return sorted({str(s).strip() for s in items if str(s).strip()})
+
+
+def scene_date(name: str) -> str:
+    """YYYYMMDD acquisition date of a scene name, or '' when it has none."""
+    m = _SCENE_DATE.search(str(name))
+    return m.group(1) if m else ""
+
+
+def _expected_frames(scenes, first_event: str) -> int:
+    """Scenes per date the pre-event dates usually have (the most common count)."""
+    counts = Counter(d for d in map(scene_date, scenes) if d and d < first_event)
+    if not counts:
+        return 1
+    tally = Counter(counts.values())
+    return max(n for n, k in tally.items() if k == max(tally.values()))
 
 
 def earliest_change_refusal(job: dict, old: str, new: str, new_modes=None) -> str:
@@ -453,10 +522,17 @@ def earliest_change_refusal(job: dict, old: str, new: str, new_modes=None) -> st
 def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     """What the listener does with the edited Variable: ``(decision, reason)``.
 
-    ``stop`` (continuity switched off), ``trigger`` (event_date gained a date or
-    selection_download a scene this run did not have), ``refused`` (an edit
-    a later pass's 00a would reject: a removed date or scene, or a changed
-    earliest date that :func:`earliest_change_refusal` refuses) or ``wait``.
+    - ``stop``: continuity switched off.
+    - ``refused``: an edit a later pass's 00a would reject — a removed scene, a
+      new scene dated before the earliest event_date (the references are
+      frozen), a new scene on a date this run already has (a date's frames come
+      in one edit), a scene name without a date, or an event_date edit that
+      drops a date or moves the earliest one where
+      :func:`earliest_change_refusal` forbids it.
+    - ``hold``: new post-event scenes, but some new date has fewer scenes than
+      the pre-event dates have — wait for the rest of its frames.
+    - ``trigger``: new post-event scenes, every new date complete.
+    - ``wait``: no new scene (an event_date edit alone does not trigger).
     """
     if not _truthy(watched.get(CONTINUITY_KEY)):
         return "stop", f"{CONTINUITY_KEY} is no longer true"
@@ -468,8 +544,7 @@ def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     removed = sorted(set(old) - set(new))
     if removed:
         return "refused", f"event_date dropped {', '.join(removed)}; dates can only be added"
-    added = sorted(set(new) - set(old))
-    if added and old and new[0] != old[0]:
+    if old and new and new[0] != old[0]:
         why = earliest_change_refusal(run_payload, old[0], new[0], watched.get("modes"))
         if why:
             return "refused", why
@@ -479,15 +554,32 @@ def continuity_decision(run_payload: dict, watched: dict) -> tuple[str, str]:
     if dropped:
         return "refused", (f"selection_download dropped {', '.join(dropped)}; scenes can "
                            f"only be added")
-    new_found = sorted(set(new_scenes) - set(old_scenes))
-    reasons = []
-    if added:
-        reasons.append(f"new post-event date(s) {', '.join(added)}")
-    if new_found:
-        reasons.append(f"new scene(s) {', '.join(new_found)}")
-    if reasons:
-        return "trigger", "; ".join(reasons)
-    return "wait", ""
+    added = sorted(set(new_scenes) - set(old_scenes))
+    if not added:
+        return "wait", ""
+    undated = [s for s in added if not scene_date(s)]
+    if undated:
+        return "refused", f"no _YYYYMMDDThhmmss date in scene name(s) {', '.join(undated)}"
+    if not new:
+        return "refused", "no event_date: cannot tell post-event scenes from pre-event ones"
+    first = new[0]
+    early = sorted(s for s in added if scene_date(s) < first)
+    if early:
+        return "refused", (f"{', '.join(early)} dated before event_date {first}; the "
+                           f"pre-event scenes are frozen, only post-event scenes can be added")
+    have = {scene_date(s) for s in old_scenes}
+    late = sorted({scene_date(s) for s in added} & have)
+    if late:
+        return "refused", (f"new frame(s) for {', '.join(late)}, a date this job already "
+                           f"processed; all frames of a date must be added in one edit")
+    expected = _expected_frames(old_scenes, first)
+    counts = Counter(scene_date(s) for s in added)
+    dates = ", ".join(f"{d} ({n} scene{'s' if n > 1 else ''})" for d, n in sorted(counts.items()))
+    short = [f"{d} has {n} of {expected}" for d, n in sorted(counts.items()) if n < expected]
+    if short:
+        return "hold", (f"new post-event scenes on {dates}, but {'; '.join(short)} scenes the "
+                        f"pre-event dates have; waiting for the rest of the frames")
+    return "trigger", f"new post-event scene(s) on {dates}"
 
 
 def _baseline(context) -> dict:
@@ -513,16 +605,21 @@ def _notify(context, *, slack_conn_id, slack_channel, message) -> None:
 
 
 def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
-                           poke_interval: int, timeout: int, **kwargs):
-    """Wait for new event_date entries or selection_download scenes in this
-    run's run-id Variable.
+                           poke_interval: int, timeout: int, frame_hold: int = 72 * 3600,
+                           **kwargs):
+    """Wait for new selection_download scenes in this run's run-id Variable.
 
     Skipped at once unless the payload this run started with has
     post_event_continuity=true. Each poke compares the (user-edited) run-id
-    Variable against that baseline; the decision goes to XCom (key
-    ``decision``) for rerun_update. Reschedule mode, so a job listening for
-    weeks holds no worker slot; on ``timeout`` the task soft-fails to SKIPPED
-    and the run ends normally.
+    Variable against that baseline (:func:`continuity_decision`); the decision
+    and its reason go to XCom (keys ``decision``, ``reason``) for rerun_update.
+
+    A ``hold`` (a new date still missing frames) posts one Slack note per
+    selection and keeps waiting; ``frame_hold`` seconds after the first hold it
+    triggers anyway, with a warning, so a date that will never be complete does
+    not block the job. Reschedule mode, so a job listening for weeks holds no
+    worker slot; on ``timeout`` the task soft-fails to SKIPPED and the run ends
+    normally.
     """
 
     def listen(**context):
@@ -530,21 +627,43 @@ def continuity_listen_task(dag_id: str, *, slack_conn_id, slack_channel,
         baseline = _baseline(context)
         if not _truthy(baseline.get(CONTINUITY_KEY)):
             raise AirflowSkipException(f"{CONTINUITY_KEY} is not set for this job")
+        if not scene_set(baseline.get("selection_download")):
+            raise AirflowException(f"{CONTINUITY_KEY} needs selection_download: post-event "
+                                   f"scenes are added to it to resume the job")
         watched = json.loads(Variable.get(run_id))
         decision, reason = continuity_decision(baseline, watched)
         print(f"Variable {run_id}: {decision} {reason}".rstrip())
+        alert = lambda message: _notify(context, slack_conn_id=slack_conn_id,
+                                        slack_channel=slack_channel, message=message)
+        where = f"{dag_id} {baseline['dir_name']}"
         if decision == "refused":
             # Once per offending edit, not once per poke.
             seen = _refused_variable(run_id)
-            stamp = json.dumps(watched.get("event_date"))
+            stamp = json.dumps([watched.get("event_date"), watched.get("selection_download")])
             if Variable.get(seen, default_var=None) != stamp:
                 Variable.set(seen, stamp)
-                _notify(context, slack_conn_id=slack_conn_id, slack_channel=slack_channel,
-                        message=f":warning: {dag_id} {baseline['dir_name']}: update not "
-                                f"triggered — {reason}. Fix the Variable {run_id}.")
+                alert(f":warning: {where}: update not triggered — {reason}. Fix the "
+                      f"Variable {run_id}.")
             return False
+        if decision == "hold":
+            key = _hold_variable(run_id)
+            raw = Variable.get(key, default_var=None)
+            held = json.loads(raw) if raw else {}
+            since = held.get("since", time.time())
+            stamp = scene_set(watched.get("selection_download"))
+            if held.get("scenes") != stamp:
+                Variable.set(key, json.dumps({"since": since, "scenes": stamp}))
+                alert(f":hourglass: {where}: {reason}. Add them to the Variable {run_id}; "
+                      f"the update runs without them after {frame_hold // 3600} h.")
+            if time.time() - since < frame_hold:
+                return False
+            alert(f":warning: {where}: frame hold expired; updating with the scenes there "
+                  f"are — {reason}")
+            decision = "trigger"
         if decision in ("stop", "trigger"):
+            Variable.delete(_hold_variable(run_id))
             context["ti"].xcom_push(key="decision", value=decision)
+            context["ti"].xcom_push(key="reason", value=reason)
             return True
         return False
 
@@ -608,7 +727,7 @@ def continuity_rerun_task(dag_id: str, *, slack_conn_id, slack_channel, timeout:
         if payload.get("dir_name") != baseline["dir_name"]:
             payload["dir_name"] = baseline["dir_name"]
             Variable.set(run_id, json.dumps(payload))
-        _, reason = continuity_decision(baseline, payload)
+        reason = ti.xcom_pull(task_ids=LISTEN_TASK_ID, key="reason") or "new scenes"
         reset = _reset_other_tasks(context)
         message = (f":repeat: {dag_id} {baseline['dir_name']}: re-running {run_id} as the "
                    f"job's next pass for {reason} ({len(reset)} tasks reset)")
