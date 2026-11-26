@@ -72,7 +72,7 @@ with DAG(
 
     # ── stack_init  (satellite coregistration) ──────────────────────────────────
     with TaskGroup(group_id='stack_init') as tg_stack_init:
-        # step: 01_fetch_alos   when: file_exist("alos_sources.json")
+        # step: 01_fetch_alos   when: file_exist("selection_download.txt")
         t_stack_init__02_fetch_data = orch_task(
             '02_fetch_data',
             'stack_init/02_fetch_data',
